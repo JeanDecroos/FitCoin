@@ -8,7 +8,7 @@ import { getCurrentUserId, setUserId } from '@/lib/auth';
 export async function loginAction(userId: string) {
   await setUserId(userId);
   revalidatePath('/');
-  redirect('/');
+  return { success: true };
 }
 
 export async function createChallengeAction(

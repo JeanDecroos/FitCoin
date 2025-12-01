@@ -34,8 +34,11 @@ export default function LoginPage() {
     if (!selectedUserId) return;
 
     try {
-      await loginAction(selectedUserId);
-      router.refresh();
+      const result = await loginAction(selectedUserId);
+      if (result?.success) {
+        router.refresh();
+        router.push('/');
+      }
     } catch (error) {
       console.error('Login error:', error);
       alert('Failed to login. Please try again.');
