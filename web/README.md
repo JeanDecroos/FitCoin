@@ -13,10 +13,12 @@ This application requires the following environment variables to be set:
 
 1. Go to your Netlify site dashboard
 2. Navigate to **Site settings** → **Environment variables**
-3. Add the following variables:
-   - `NEXT_PUBLIC_SUPABASE_URL` = `https://fpfgkbdtzxehfrfshyuj.supabase.co`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwZmdrYmR0enhlaGZyZnNoeXVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1OTgxODMsImV4cCI6MjA4MDE3NDE4M30.kL8gqQlGJMLqzIm8apcTI1IcaVJTERWPiHDk35VuLFw`
+3. Add the following variables with your Supabase credentials:
+   - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anonymous key
 4. Redeploy your site
+
+**Note:** These are public environment variables (prefixed with `NEXT_PUBLIC_`) and will be bundled into the client-side code. This is expected and safe for Supabase anonymous keys.
 
 ## Local Development
 

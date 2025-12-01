@@ -8,4 +8,6 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  # These are intentionally public keys (NEXT_PUBLIC_*) that are bundled into client code
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
 
