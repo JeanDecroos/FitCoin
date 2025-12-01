@@ -32,7 +32,7 @@ export async function createChallengeAction(
   if (updateError) throw updateError;
 
   revalidatePath('/');
-  redirect('/dashboard');
+  return { success: true };
 }
 
 export async function createWagerAction(

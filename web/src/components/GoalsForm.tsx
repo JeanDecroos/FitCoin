@@ -24,8 +24,11 @@ export default function GoalsForm({ userId }: GoalsFormProps) {
 
     setLoading(true);
     try {
-      await createChallengeAction(userId, dexaGoal.trim(), functionalGoal.trim());
-      router.refresh();
+      const result = await createChallengeAction(userId, dexaGoal.trim(), functionalGoal.trim());
+      if (result?.success) {
+        router.refresh();
+        router.push('/dashboard');
+      }
     } catch (error) {
       console.error('Error creating challenge:', error);
       alert('Failed to set goals. Please try again.');
