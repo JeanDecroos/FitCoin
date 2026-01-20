@@ -1,178 +1,190 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { createServerSupabaseClient } from '@/lib/supabase';
-import { getCurrentUserId, setUserId, getSupabaseAuthUser, linkAuthUserToUser } from '@/lib/auth';
+import { setSession, clearSession } from '@/lib/auth';
 
 // Authentication actions
 export async function signUpAction(name: string, email: string, password: string) {
   const supabase = await createServerSupabaseClient();
   
-  // Check if user with this name already exists BEFORE creating auth user
-  // This prevents creating orphaned auth users if the name is taken
-  const { data: existingUser } = await supabase
+  // Check if user with this name or email already exists
+  const { data: existingUserByName } = await supabase
     .from('users')
     .select('id')
     .eq('name', name.trim())
     .maybeSingle();
 
-  if (existingUser) {
+  if (existingUserByName) {
     return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
   }
-  
-  // Configure email verification redirect URL
-  // This URL is where users will be redirected after clicking the verification link in their email
-  // 
-  // IMPORTANT: The URL must be whitelisted in Supabase Dashboard:
-  // - Go to Authentication → URL Configuration → Redirect URLs
-  // - Add both production and localhost URLs:
-  //   - https://ddfitcoin.netlify.app/auth/confirm (production)
-  //   - http://localhost:3000/auth/confirm (local development)
-  //
-  // If the URL is not whitelisted, Supabase will fall back to the Site URL configured in the dashboard
-  // See SUPABASE_SETUP.md for detailed configuration instructions
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://ddfitcoin.netlify.app';
-  const redirectTo = `${baseUrl}/auth/confirm`;
-  
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      // This redirect URL is included in the verification email
-      // Supabase will redirect users here after they verify their email
-      // The redirect only works if the URL is in the Supabase Redirect URLs whitelist
-      emailRedirectTo: redirectTo,
-    },
-  });
 
-  if (error) {
-    return { success: false, error: error.message };
+  const { data: existingUserByEmail } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email.toLowerCase().trim())
+    .maybeSingle();
+
+  if (existingUserByEmail) {
+    return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
   }
 
-  if (!data.user) {
-    return { success: false, error: 'Failed to create user' };
-  }
+  // Hash password
+  const passwordHash = await bcrypt.hash(password, 10);
 
   // Create new user record with default balance of 200 fitcoins
-  // Try inserting with auth_user_id first. If it fails due to foreign key constraint,
-  // we'll create without it and link later during email confirmation.
-  let { data: newUser, error: createError } = await supabase
+  const { data: newUser, error: createError } = await supabase
     .from('users')
     .insert({
       name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password_hash: passwordHash,
       balance: 200,
-      auth_user_id: data.user.id,
       is_admin: false,
       goals_set: false,
     })
     .select()
     .single();
 
-  // If insert failed due to foreign key constraint (23503), create without auth_user_id and link later
-  if (createError && createError.code === '23503') {
-    // Create user without auth_user_id (will be linked after email confirmation)
-    const { data: userWithoutAuth, error: createWithoutAuthError } = await supabase
-      .from('users')
-      .insert({
-        name: name.trim(),
-        balance: 200,
-        auth_user_id: null, // Will be linked after email confirmation
-        is_admin: false,
-        goals_set: false,
-      })
-      .select()
-      .single();
-
-    if (createWithoutAuthError) {
-      // Handle database constraint errors (e.g., unique name violation)
-      if (createWithoutAuthError.code === '23505') { // Unique violation error code
-        return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
-      }
-      return { success: false, error: createWithoutAuthError.message || 'Failed to create user profile' };
-    }
-
-    // Store the user ID temporarily to link after confirmation
-    // The linking will happen when user confirms email and visits the confirm page
-    newUser = userWithoutAuth;
-    createError = null;
-  }
-
   if (createError) {
-    // Handle database constraint errors (e.g., unique name violation)
+    // Handle database constraint errors
     if (createError.code === '23505') { // Unique violation error code
+      if (createError.message.includes('email')) {
+        return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
+      }
       return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
     }
-    return { success: false, error: createError.message || 'Failed to create user profile' };
+    return { success: false, error: createError.message || 'Failed to create user' };
   }
 
-  // If user was created without auth_user_id, try to link it now (auth user should exist by now)
-  if (newUser && !newUser.auth_user_id) {
-    const { error: linkError } = await supabase
-      .from('users')
-      .update({ auth_user_id: data.user.id })
-      .eq('id', newUser.id);
-
-    // If linking fails, it's okay - user can still sign up and we'll link during email confirmation
-    if (linkError) {
-      console.warn('Failed to link auth_user_id immediately, will link during email confirmation:', linkError);
-    }
+  if (!newUser) {
+    return { success: false, error: 'Failed to create user' };
   }
+
+  // Set session immediately (no email verification needed)
+  await setSession(newUser.id);
 
   revalidatePath('/');
-  return { success: true, user: data.user };
+  return { success: true, user: newUser };
 }
 
 export async function signInAction(email: string, password: string) {
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  
+  // Find user by email
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email.toLowerCase().trim())
+    .single();
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (fetchError || !user) {
+    return { success: false, error: 'Invalid email or password' };
   }
 
-  if (!data.user) {
-    return { success: false, error: 'Failed to sign in' };
+  // Check if user has a password hash (for existing users who might not have one yet)
+  if (!user.password_hash) {
+    return { success: false, error: 'Account not set up. Please contact support.' };
   }
+
+  // Verify password
+  const passwordMatch = await bcrypt.compare(password, user.password_hash);
+  if (!passwordMatch) {
+    return { success: false, error: 'Invalid email or password' };
+  }
+
+  // Set session
+  await setSession(user.id);
 
   revalidatePath('/');
-  return { success: true, user: data.user };
+  return { success: true, user };
 }
 
 export async function signOutAction() {
-  const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
+  await clearSession();
   revalidatePath('/');
   return { success: true };
 }
 
-export async function linkAuthUserToUserAction(userId: string) {
-  const authUser = await getSupabaseAuthUser();
-  if (!authUser) {
-    return { success: false, error: 'Not authenticated' };
+export async function forgotPasswordAction(email: string) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Find user by email
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', email.toLowerCase().trim())
+    .single();
+
+  // Don't reveal if email exists or not (security best practice)
+  if (fetchError || !user) {
+    // Still return success to prevent email enumeration
+    return { success: true };
   }
 
-  try {
-    await linkAuthUserToUser(authUser.id, userId);
-    revalidatePath('/');
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to link user' };
+  // Generate secure reset token
+  const resetToken = randomBytes(32).toString('hex');
+  const resetTokenExpires = new Date();
+  resetTokenExpires.setHours(resetTokenExpires.getHours() + 1); // 1 hour expiration
+
+  // Store reset token in database
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      reset_token: resetToken,
+      reset_token_expires: resetTokenExpires.toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (updateError) {
+    return { success: false, error: 'Failed to generate reset token. Please try again.' };
   }
+
+  // TODO: Send email with reset link
+  // For now, we'll just return success
+  // The reset link would be: ${baseUrl}/reset-password?token=${resetToken}
+  
+  return { success: true };
 }
 
-// Legacy login action (kept for backward compatibility)
-export async function loginAction(userId: string) {
-  await setUserId(userId);
-  revalidatePath('/');
+export async function resetPasswordAction(token: string, newPassword: string) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Find user by reset token
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('id, reset_token_expires')
+    .eq('reset_token', token)
+    .single();
+
+  if (fetchError || !user) {
+    return { success: false, error: 'Invalid or expired reset token' };
+  }
+
+  // Check if token is expired
+  if (!user.reset_token_expires || new Date(user.reset_token_expires) < new Date()) {
+    return { success: false, error: 'Reset token has expired. Please request a new one.' };
+  }
+
+  // Hash new password
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  // Update password and clear reset token
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      password_hash: passwordHash,
+      reset_token: null,
+      reset_token_expires: null,
+    })
+    .eq('id', user.id);
+
+  if (updateError) {
+    return { success: false, error: 'Failed to reset password. Please try again.' };
+  }
+
   return { success: true };
 }
 
@@ -623,38 +635,3 @@ export async function calculatePayoutAction(userId: string) {
   };
 }
 
-// Utility action to unlink all users (for testing/development)
-export async function unlinkAllUsersAction() {
-  const supabase = await createServerSupabaseClient();
-  
-  // Get all users that have an auth_user_id
-  const { data: users, error: fetchError } = await supabase
-    .from('users')
-    .select('id')
-    .not('auth_user_id', 'is', null);
-
-  if (fetchError) {
-    // If the query fails, try updating all users (harmless to set null on already-null values)
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ auth_user_id: null });
-    
-    if (updateError) {
-      throw updateError;
-    }
-  } else if (users && users.length > 0) {
-    // Update only users that have an auth_user_id
-    const userIds = users.map(u => u.id);
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ auth_user_id: null })
-      .in('id', userIds);
-    
-    if (updateError) {
-      throw updateError;
-    }
-  }
-
-  revalidatePath('/');
-  return { success: true };
-}

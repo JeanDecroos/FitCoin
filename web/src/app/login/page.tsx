@@ -20,20 +20,10 @@ export default function LoginPage() {
     try {
       const result = await signInAction(email, password);
       if (result.success) {
-        // Check if user has linked user record - this will be handled by the root page
         router.push('/');
         router.refresh();
       } else {
-        // Check if error is related to email not being confirmed
-        const errorMessage = result.error || 'Failed to sign in';
-        if (errorMessage.toLowerCase().includes('email') && 
-            (errorMessage.toLowerCase().includes('confirm') || 
-             errorMessage.toLowerCase().includes('verify') ||
-             errorMessage.toLowerCase().includes('not confirmed'))) {
-          setError('Please verify your email before signing in. Check your inbox for the verification link.');
-        } else {
-          setError(errorMessage);
-        }
+        setError(result.error || 'Failed to sign in');
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -93,6 +83,15 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+
+          <div className="mt-4 text-center">
+            <a
+              href="/forgot-password"
+              className="text-yellow-400 hover:text-yellow-500 text-sm font-semibold"
+            >
+              Forgot Password?
+            </a>
+          </div>
 
           <div className="mt-6 text-center">
             <p className="text-gray-400 text-sm">

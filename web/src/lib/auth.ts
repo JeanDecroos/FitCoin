@@ -1,22 +1,44 @@
+import { cookies } from 'next/headers';
 import { createServerSupabaseClient } from './supabase';
 
-// Get the current Supabase auth user
-export async function getSupabaseAuthUser() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return null;
-  }
-  return user;
+const SESSION_COOKIE_NAME = 'fitcoin_session';
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+
+// Get session from cookies
+export async function getSession(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
+  return sessionCookie?.value || null;
 }
 
-// Get the user record linked to the current auth user
-export async function getUserFromAuth() {
-  const authUser = await getSupabaseAuthUser();
-  if (!authUser) {
+// Set session cookie with user ID
+export async function setSession(userId: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, userId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: SESSION_MAX_AGE,
+    path: '/',
+  });
+}
+
+// Clear session cookie
+export async function clearSession() {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE_NAME);
+}
+
+// Get the current user ID from session
+export async function getCurrentUserId(): Promise<string | null> {
+  const userId = await getSession();
+  return userId;
+}
+
+// Get the current user record from session
+export async function getCurrentUser() {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return null;
   }
 
@@ -24,7 +46,7 @@ export async function getUserFromAuth() {
   const { data: user, error } = await supabase
     .from('users')
     .select('*')
-    .eq('auth_user_id', authUser.id)
+    .eq('id', userId)
     .single();
 
   if (error || !user) {
@@ -33,61 +55,3 @@ export async function getUserFromAuth() {
 
   return user;
 }
-
-// Get the current user ID (linked user record ID)
-export async function getCurrentUserId(): Promise<string | null> {
-  const user = await getUserFromAuth();
-  return user?.id || null;
-}
-
-// Link an auth user to a user record
-export async function linkAuthUserToUser(authUserId: string, userId: string) {
-  const supabase = await createServerSupabaseClient();
-
-  // Check if user is already linked
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('auth_user_id')
-    .eq('id', userId)
-    .single();
-
-  if (existingUser?.auth_user_id) {
-    throw new Error('User is already linked to an auth account');
-  }
-
-  // Check if auth user is already linked to another user
-  const { data: existingLink } = await supabase
-    .from('users')
-    .select('id')
-    .eq('auth_user_id', authUserId)
-    .single();
-
-  if (existingLink) {
-    throw new Error('Auth account is already linked to a user');
-  }
-
-  // Link the auth user to the user record
-  const { error } = await supabase
-    .from('users')
-    .update({ auth_user_id: authUserId })
-    .eq('id', userId);
-
-  if (error) {
-    throw error;
-  }
-
-  return { success: true };
-}
-
-// Backward compatibility functions (kept for transition period)
-export async function setUserId(userId: string) {
-  // This is now handled by Supabase auth, but keeping for compatibility
-  // In practice, this should not be used anymore
-  console.warn('setUserId is deprecated. Use Supabase auth instead.');
-}
-
-export async function clearUserId() {
-  // This is now handled by Supabase auth, but keeping for compatibility
-  console.warn('clearUserId is deprecated. Use Supabase signOut instead.');
-}
-
