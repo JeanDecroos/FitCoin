@@ -88,7 +88,7 @@ export default function GoalsForm({ userId }: GoalsFormProps) {
         </button>
 
         <p className="text-sm text-gray-500 text-center">
-          You'll receive 5,000 FitCoins once your goals are locked in
+          You'll receive 200 FitCoins once your goals are locked in
         </p>
       </form>
     </div>

@@ -7,9 +7,9 @@ import { supabase } from '@/lib/supabase';
 import { signOutAction } from '@/app/actions';
 import { Tables } from '@/types/supabase';
 import WagerFeed from './WagerFeed';
-import Leaderboard from './Leaderboard';
+import ChallengesFeed from './ChallengesFeed';
 import CreateWagerModal from './CreateWagerModal';
-import { Coins, Plus, Shield, LogOut } from 'lucide-react';
+import { Coins, Plus, Shield, LogOut, Target } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Wager = Tables<'wagers'> & {
@@ -56,7 +56,7 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
 
       if (userData) setUser(userData);
 
-      // Fetch all users for leaderboard
+      // Fetch all users for wager creation
       const { data: usersData } = await supabase
         .from('users')
         .select('*')
@@ -113,6 +113,13 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
             )}
           </div>
           <div className="flex gap-3">
+            <Link
+              href="/challenges"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            >
+              <Target className="w-5 h-5" />
+              Challenges
+            </Link>
             {isAdmin && (
               <Link
                 href="/admin"
@@ -145,9 +152,9 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
             <WagerFeed wagers={wagers} userId={userId} onUpdate={fetchData} />
           </div>
 
-          {/* Leaderboard - Takes 1 column */}
+          {/* Challenges Feed - Takes 1 column */}
           <div className="lg:col-span-1">
-            <Leaderboard users={users} currentUserId={userId} />
+            <ChallengesFeed />
           </div>
         </div>
       </div>

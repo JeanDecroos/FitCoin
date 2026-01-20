@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { resolveChallengeAction, approveFundRequestAction, rejectFundRequestAction } from '@/app/actions';
+import { resolveChallengeAction, approveFundRequestAction, rejectFundRequestAction, setChallengeEndDateAction } from '@/app/actions';
 import { Tables } from '@/types/supabase';
-import { ArrowLeft, CheckCircle, XCircle, Coins } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Coins, Calendar, Save } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Challenge = Tables<'challenges'> & {
@@ -24,11 +24,14 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
   const router = useRouter();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [fundRequests, setFundRequests] = useState<FundRequest[]>([]);
+  const [endDate, setEndDate] = useState<string>('');
+  const [currentEndDate, setCurrentEndDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchChallenges();
     fetchFundRequests();
+    fetchEndDate();
   }, []);
 
   async function fetchChallenges() {
@@ -62,6 +65,43 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
       setFundRequests((data as any) || []);
     }
     setLoading(false);
+  }
+
+  async function fetchEndDate() {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('timestamp_value')
+      .eq('key', 'challenge_end_date')
+      .single();
+
+    if (!error && data?.timestamp_value) {
+      const date = new Date(data.timestamp_value);
+      setCurrentEndDate(date);
+      // Set the input field to local datetime string format (YYYY-MM-DDTHH:mm)
+      const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      setEndDate(localDate.toISOString().slice(0, 16));
+    }
+  }
+
+  async function handleSetEndDate() {
+    if (!endDate) {
+      alert('Please select an end date');
+      return;
+    }
+
+    if (!confirm('Set this as the challenge end date? All challenges will be resolved at this time.')) {
+      return;
+    }
+
+    try {
+      // Convert local datetime to ISO string
+      const dateObj = new Date(endDate);
+      await setChallengeEndDateAction(userId, dateObj.toISOString());
+      fetchEndDate();
+      alert('Challenge end date set successfully!');
+    } catch (error: any) {
+      alert(error.message || 'Failed to set challenge end date');
+    }
   }
 
   async function handleApprove(requestId: string) {
@@ -142,6 +182,50 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
             <div>
               <h1 className="text-4xl font-bold text-white">Admin Panel</h1>
               <p className="text-gray-400 mt-1">Resolve challenge outcomes & approve fund requests</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Challenge End Date Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-blue-400" />
+            Challenge End Date
+          </h2>
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6">
+            <div className="space-y-4">
+              {currentEndDate && (
+                <div className="text-gray-300">
+                  <span className="font-semibold text-blue-400">Current End Date:</span>{' '}
+                  {currentEndDate.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+              )}
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Set Challenge End Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={handleSetEndDate}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  Set Date
+                </button>
+              </div>
             </div>
           </div>
         </div>

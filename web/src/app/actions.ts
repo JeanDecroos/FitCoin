@@ -561,6 +561,60 @@ export async function rejectFundRequestAction(
   return { success: true };
 }
 
+export async function setChallengeEndDateAction(
+  adminId: string,
+  endDate: string
+) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Verify admin
+  const { data: admin } = await supabase
+    .from('users')
+    .select('is_admin, name')
+    .eq('id', adminId)
+    .single();
+
+  if (!admin || !admin.is_admin || admin.name !== 'Bart-Jan Decroos') {
+    throw new Error('Unauthorized: Only admin can set challenge end date');
+  }
+
+  // Check if challenge_end_date already exists
+  const { data: existing } = await supabase
+    .from('system_settings')
+    .select('id')
+    .eq('key', 'challenge_end_date')
+    .single();
+
+  if (existing) {
+    // Update existing
+    const { error } = await supabase
+      .from('system_settings')
+      .update({
+        timestamp_value: endDate,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('key', 'challenge_end_date');
+
+    if (error) throw error;
+  } else {
+    // Insert new
+    const { error } = await supabase
+      .from('system_settings')
+      .insert({
+        key: 'challenge_end_date',
+        value: 0, // Required field, but we use timestamp_value
+        timestamp_value: endDate,
+      });
+
+    if (error) throw error;
+  }
+
+  revalidatePath('/admin');
+  revalidatePath('/challenges');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
 export async function calculatePayoutAction(userId: string) {
   const supabase = await createServerSupabaseClient();
   
