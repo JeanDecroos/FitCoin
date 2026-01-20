@@ -18,10 +18,9 @@ export default function ForgotPasswordPage() {
 
     try {
       const result = await forgotPasswordAction(email);
+      // forgotPasswordAction always returns success: true (for security - prevents email enumeration)
       if (result.success) {
         setSuccess(true);
-      } else {
-        setError(result.error || 'Failed to send reset email');
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
