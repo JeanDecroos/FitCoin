@@ -61,7 +61,7 @@ export default function SignUpPage() {
     try {
       const result = await signUpAction(name.trim(), email, password);
       if (result.success) {
-        router.push('/');
+        router.push('/check-email');
       } else {
         setError(result.error || 'Failed to sign up');
       }

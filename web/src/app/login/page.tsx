@@ -24,7 +24,16 @@ export default function LoginPage() {
         router.push('/');
         router.refresh();
       } else {
-        setError(result.error || 'Failed to sign in');
+        // Check if error is related to email not being confirmed
+        const errorMessage = result.error || 'Failed to sign in';
+        if (errorMessage.toLowerCase().includes('email') && 
+            (errorMessage.toLowerCase().includes('confirm') || 
+             errorMessage.toLowerCase().includes('verify') ||
+             errorMessage.toLowerCase().includes('not confirmed'))) {
+          setError('Please verify your email before signing in. Check your inbox for the verification link.');
+        } else {
+          setError(errorMessage);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
