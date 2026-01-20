@@ -8,9 +8,17 @@ import { getCurrentUserId, setUserId, getSupabaseAuthUser, linkAuthUserToUser } 
 // Authentication actions
 export async function signUpAction(email: string, password: string) {
   const supabase = await createServerSupabaseClient();
+  
+  // Get the base URL for redirect (use environment variable or default)
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://ddfitcoin.netlify.app';
+  const redirectTo = `${baseUrl}/auth/confirm`;
+  
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: redirectTo,
+    },
   });
 
   if (error) {
@@ -341,28 +349,6 @@ export async function resolveChallengeAction(
 
   revalidatePath('/admin');
   revalidatePath('/dashboard');
-}
-
-export async function requestFundsAction(userId: string, euroAmount: number) {
-  const supabase = await createServerSupabaseClient();
-  
-  if (euroAmount <= 0) {
-    throw new Error('Euro amount must be greater than 0');
-  }
-
-  const fitcoinAmount = Math.floor(euroAmount * 10);
-
-  const { error } = await supabase.from('fund_requests').insert({
-    user_id: userId,
-    euro_amount: euroAmount,
-    fitcoin_amount: fitcoinAmount,
-    status: 'PENDING',
-  });
-
-  if (error) throw error;
-
-  revalidatePath('/dashboard');
-  return { success: true };
 }
 
 export async function approveFundRequestAction(
