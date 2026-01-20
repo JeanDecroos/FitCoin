@@ -12,10 +12,26 @@ export async function getCurrentAuthUser() {
   return user;
 }
 
-// Get the current user ID from Supabase Auth session
+// Get the current user ID from public.users table (not auth.users)
+// This ensures foreign key constraints work correctly with challenges, wagers, etc.
 export async function getCurrentUserId(): Promise<string | null> {
   const authUser = await getCurrentAuthUser();
-  return authUser?.id || null;
+  if (!authUser) {
+    return null;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('id')
+    .eq('auth_user_id', authUser.id)
+    .single();
+
+  if (error || !user) {
+    return null;
+  }
+
+  return user.id;
 }
 
 // Get the current user record from public.users table linked via auth_user_id
