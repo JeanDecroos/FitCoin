@@ -14,17 +14,18 @@ function ConfirmContent() {
   useEffect(() => {
     async function handleEmailVerification() {
       try {
-        // Get the hash fragment from the URL (Supabase uses hash fragments for auth callbacks)
+        // Get the hash fragment from the URL (Supabase redirects here with tokens after verification)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
         const error = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
 
-        // Also check query params (some configurations use query params)
+        // Also check query params (for direct token verification)
         const queryToken = searchParams.get('token');
         const queryType = searchParams.get('type');
         const queryError = searchParams.get('error');
+        const queryTokenHash = searchParams.get('token_hash');
 
         // Handle error cases
         if (error || queryError) {
@@ -36,7 +37,8 @@ function ConfirmContent() {
           return;
         }
 
-        // If we have tokens in the hash, exchange them for a session
+        // If we have tokens in the hash (Supabase redirects here after verification)
+        // This is the most common flow - user clicks email link, Supabase verifies, then redirects here
         if (accessToken && refreshToken) {
           const { error: sessionError } = await supabase.auth.setSession({
             access_token: accessToken,
@@ -59,11 +61,40 @@ function ConfirmContent() {
         }
 
         // Handle token-based verification (if using query params)
-        if (queryToken && queryType === 'signup') {
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: queryToken,
-            type: 'signup',
-          });
+        // This handles cases where the token is passed directly in query params
+        if ((queryToken || queryTokenHash) && queryType) {
+          let verifyError = null;
+          
+          // Try with token_hash first (most common)
+          if (queryTokenHash) {
+            const result = await supabase.auth.verifyOtp({
+              token_hash: queryTokenHash,
+              type: queryType as any,
+            });
+            verifyError = result.error;
+          } 
+          // If no token_hash, try with token (for PKCE tokens like pkce_...)
+          else if (queryToken) {
+            // For PKCE tokens, we need to use the token directly
+            // Check if it's a PKCE token
+            if (queryToken.startsWith('pkce_')) {
+              // PKCE tokens need to be verified differently
+              // They're typically handled by Supabase's redirect flow
+              // But we can try verifyOtp with token_hash
+              const result = await supabase.auth.verifyOtp({
+                token_hash: queryToken,
+                type: queryType as any,
+              });
+              verifyError = result.error;
+            } else {
+              // Regular token
+              const result = await supabase.auth.verifyOtp({
+                token: queryToken,
+                type: queryType as any,
+              });
+              verifyError = result.error;
+            }
+          }
 
           if (verifyError) {
             throw verifyError;

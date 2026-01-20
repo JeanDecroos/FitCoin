@@ -3,18 +3,52 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signUpAction } from '@/app/actions';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock } from 'lucide-react';
 
 export default function SignUpPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  function validatePasswords() {
+    if (password && confirmPassword && password !== confirmPassword) {
+      setPasswordMismatch(true);
+      return false;
+    }
+    setPasswordMismatch(false);
+    return true;
+  }
+
+  function handleConfirmPasswordChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setConfirmPassword(e.target.value);
+    if (e.target.value && password && e.target.value !== password) {
+      setPasswordMismatch(true);
+    } else {
+      setPasswordMismatch(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setPasswordMismatch(false);
+
+    // Validate passwords match
+    if (!validatePasswords()) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -67,17 +101,51 @@ export default function SignUpPage() {
               <input
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (confirmPassword && e.target.value !== confirmPassword) {
+                    setPasswordMismatch(true);
+                  } else if (confirmPassword && e.target.value === confirmPassword) {
+                    setPasswordMismatch(false);
+                  }
+                }}
                 placeholder="Password"
                 required
                 minLength={6}
-                className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                  passwordMismatch
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-600 focus:ring-yellow-500 focus:border-transparent'
+                }`}
               />
             </div>
 
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={handleConfirmPasswordChange}
+                placeholder="Confirm Password"
+                required
+                minLength={6}
+                className={`w-full pl-10 pr-4 py-3 bg-gray-700/50 border rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                  passwordMismatch
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-600 focus:ring-yellow-500 focus:border-transparent'
+                }`}
+              />
+            </div>
+
+            {passwordMismatch && (
+              <div className="text-red-400 text-sm">
+                Passwords do not match
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || passwordMismatch || !password || !confirmPassword}
               className="w-full py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900 font-semibold rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
             >
               {loading ? 'Signing up...' : 'Sign Up'}
