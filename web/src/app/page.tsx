@@ -10,10 +10,13 @@ export default async function Home() {
   }
 
   // Check if user has linked user record
+  // Since users are now created during signup, this should always exist
   const user = await getUserFromAuth();
 
   if (!user) {
-    redirect('/select-user');
+    // This should not happen if signup worked correctly
+    // Redirect to login as a fallback
+    redirect('/login');
   }
 
   // Check if user has set goals

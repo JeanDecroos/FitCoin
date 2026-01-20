@@ -6,7 +6,7 @@ import { createServerSupabaseClient } from '@/lib/supabase';
 import { getCurrentUserId, setUserId, getSupabaseAuthUser, linkAuthUserToUser } from '@/lib/auth';
 
 // Authentication actions
-export async function signUpAction(email: string, password: string) {
+export async function signUpAction(name: string, email: string, password: string) {
   const supabase = await createServerSupabaseClient();
   
   // Get the base URL for redirect (use environment variable or default)
@@ -27,6 +27,41 @@ export async function signUpAction(email: string, password: string) {
 
   if (!data.user) {
     return { success: false, error: 'Failed to create user' };
+  }
+
+  // Create user record in the database and link to auth user
+  // Check if user with this name already exists
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('name', name)
+    .single();
+
+  if (existingUser) {
+    // User with this name already exists - return error
+    // Note: We still have the auth user created, but they won't have a linked record
+    return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
+  }
+
+  // Create new user record with default balance of 200 fitcoins
+  const { data: newUser, error: createError } = await supabase
+    .from('users')
+    .insert({
+      name: name.trim(),
+      balance: 200,
+      auth_user_id: data.user.id,
+      is_admin: false,
+      goals_set: false,
+    })
+    .select()
+    .single();
+
+  if (createError) {
+    // Handle database constraint errors (e.g., unique name violation)
+    if (createError.code === '23505') { // Unique violation error code
+      return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
+    }
+    return { success: false, error: createError.message || 'Failed to create user profile' };
   }
 
   revalidatePath('/');

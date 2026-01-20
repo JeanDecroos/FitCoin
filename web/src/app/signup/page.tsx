@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signUpAction } from '@/app/actions';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, User } from 'lucide-react';
 
 export default function SignUpPage() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,12 +50,18 @@ export default function SignUpPage() {
       return;
     }
 
+    // Validate name
+    if (!name || name.trim().length === 0) {
+      setError('Name is required');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await signUpAction(email, password);
+      const result = await signUpAction(name.trim(), email, password);
       if (result.success) {
-        router.push('/select-user');
+        router.push('/');
       } else {
         setError(result.error || 'Failed to sign up');
       }
@@ -84,6 +91,18 @@ export default function SignUpPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Name"
+                required
+                className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+              />
+            </div>
+
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
@@ -145,7 +164,7 @@ export default function SignUpPage() {
 
             <button
               type="submit"
-              disabled={loading || passwordMismatch || !password || !confirmPassword}
+              disabled={loading || passwordMismatch || !name || !password || !confirmPassword}
               className="w-full py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900 font-semibold rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
             >
               {loading ? 'Signing up...' : 'Sign Up'}
