@@ -8,66 +8,104 @@ import { setSession, clearSession } from '@/lib/auth';
 
 // Authentication actions
 export async function signUpAction(name: string, email: string, password: string) {
-  const supabase = await createServerSupabaseClient();
-  
-  // Check if user with this name or email already exists
-  const { data: existingUserByName } = await supabase
-    .from('users')
-    .select('id')
-    .eq('name', name.trim())
-    .maybeSingle();
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // Check if user with this name or email already exists
+    const { data: existingUserByName, error: nameCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('name', name.trim())
+      .maybeSingle();
 
-  if (existingUserByName) {
-    return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
-  }
-
-  const { data: existingUserByEmail } = await supabase
-    .from('users')
-    .select('id')
-    .eq('email', email.toLowerCase().trim())
-    .maybeSingle();
-
-  if (existingUserByEmail) {
-    return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
-  }
-
-  // Hash password
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  // Create new user record with default balance of 200 fitcoins
-  const { data: newUser, error: createError } = await supabase
-    .from('users')
-    .insert({
-      name: name.trim(),
-      email: email.toLowerCase().trim(),
-      password_hash: passwordHash,
-      balance: 200,
-      is_admin: false,
-      goals_set: false,
-    })
-    .select()
-    .single();
-
-  if (createError) {
-    // Handle database constraint errors
-    if (createError.code === '23505') { // Unique violation error code
-      if (createError.message.includes('email')) {
-        return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
+    if (nameCheckError) {
+      console.error('Error checking existing user by name:', nameCheckError);
+      // If the error is about missing column, the migration hasn't been run
+      if (nameCheckError.message?.includes('column') || nameCheckError.code === '42703') {
+        return { success: false, error: 'Database migration not applied. Please contact support.' };
       }
+    }
+
+    if (existingUserByName) {
       return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
     }
-    return { success: false, error: createError.message || 'Failed to create user' };
+
+    const { data: existingUserByEmail, error: emailCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+
+    if (emailCheckError) {
+      console.error('Error checking existing user by email:', emailCheckError);
+      // If the error is about missing column, the migration hasn't been run
+      if (emailCheckError.message?.includes('column') || emailCheckError.code === '42703') {
+        return { success: false, error: 'Database migration not applied. Please contact support.' };
+      }
+    }
+
+    if (existingUserByEmail) {
+      return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
+    }
+
+    // Hash password
+    let passwordHash: string;
+    try {
+      passwordHash = await bcrypt.hash(password, 10);
+    } catch (bcryptError: any) {
+      console.error('Error hashing password:', bcryptError);
+      return { success: false, error: 'Failed to process password. Please try again.' };
+    }
+
+    // Create new user record with default balance of 200 fitcoins
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        password_hash: passwordHash,
+        balance: 200,
+        is_admin: false,
+        goals_set: false,
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating user:', createError);
+      // Handle database constraint errors
+      if (createError.code === '23505') { // Unique violation error code
+        if (createError.message.includes('email')) {
+          return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
+        }
+        return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
+      }
+      // Check if columns don't exist (migration not run)
+      if (createError.message?.includes('column') || createError.code === '42703') {
+        return { success: false, error: 'Database migration not applied. The email and password_hash columns are missing. Please contact support.' };
+      }
+      return { success: false, error: createError.message || 'Failed to create user' };
+    }
+
+    if (!newUser) {
+      return { success: false, error: 'Failed to create user' };
+    }
+
+    // Set session immediately (no email verification needed)
+    try {
+      await setSession(newUser.id);
+    } catch (sessionError: any) {
+      console.error('Error setting session:', sessionError);
+      // User was created but session failed - still return success but log the error
+      // The user can log in manually
+    }
+
+    revalidatePath('/');
+    return { success: true, user: newUser };
+  } catch (error: any) {
+    console.error('Unexpected error in signUpAction:', error);
+    return { success: false, error: error.message || 'An unexpected error occurred. Please try again.' };
   }
-
-  if (!newUser) {
-    return { success: false, error: 'Failed to create user' };
-  }
-
-  // Set session immediately (no email verification needed)
-  await setSession(newUser.id);
-
-  revalidatePath('/');
-  return { success: true, user: newUser };
 }
 
 export async function signInAction(email: string, password: string) {
