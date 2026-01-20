@@ -40,6 +40,11 @@ function ConfirmContent() {
         const refreshToken = hashParams.get('refresh_token');
         const error = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
+        
+        // Debug logging (remove in production if needed)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Hash params:', { accessToken: !!accessToken, refreshToken: !!refreshToken, error, errorDescription });
+        }
 
         // Also check query params (for direct token verification)
         const queryToken = searchParams.get('token');
@@ -48,13 +53,19 @@ function ConfirmContent() {
         const queryTokenHash = searchParams.get('token_hash');
         const queryEmail = searchParams.get('email');
 
-        // Handle error cases
+        // Handle error cases from Supabase redirect
         if (error || queryError) {
           setStatus('error');
-          setMessage(errorDescription || queryError || 'Verification failed. Please try again.');
+          const errorMsg = errorDescription || queryError || 'Verification failed. Please try again.';
+          // Check for specific error messages and provide helpful guidance
+          if (errorMsg.toLowerCase().includes('expired') || errorMsg.toLowerCase().includes('invalid')) {
+            setMessage('Email link is invalid or has expired. Please request a new verification email from the login page.');
+          } else {
+            setMessage(errorMsg);
+          }
           setTimeout(() => {
             router.push('/login');
-          }, 3000);
+          }, 5000);
           return;
         }
 
@@ -155,19 +166,38 @@ function ConfirmContent() {
           return;
         }
 
-        // No tokens and no session - might be a direct visit
-        setStatus('error');
-        setMessage('Invalid verification link. Please check your email and try again.');
+        // No tokens and no session - might be a direct visit or expired/invalid link
+        // Check if there's any indication of what went wrong in the URL
+        const hasHash = window.location.hash.length > 0;
+        const hasQuery = window.location.search.length > 0;
+        
+        if (hasHash || hasQuery) {
+          // URL has parameters but no valid tokens - likely expired or invalid
+          setStatus('error');
+          setMessage('Email link is invalid or has expired. Please request a new verification email from the login page.');
+        } else {
+          // Direct visit without any parameters
+          setStatus('error');
+          setMessage('Invalid verification link. Please check your email and use the verification link provided.');
+        }
         setTimeout(() => {
           router.push('/login');
-        }, 3000);
+        }, 5000);
       } catch (err: any) {
         console.error('Verification error:', err);
         setStatus('error');
-        setMessage(err.message || 'Verification failed. Please try again.');
+        const errorMsg = err.message || 'Verification failed. Please try again.';
+        // Check for specific error messages and provide helpful guidance
+        if (errorMsg.toLowerCase().includes('expired') || 
+            errorMsg.toLowerCase().includes('invalid') ||
+            errorMsg.toLowerCase().includes('token')) {
+          setMessage('Email link is invalid or has expired. Please request a new verification email from the login page.');
+        } else {
+          setMessage(errorMsg);
+        }
         setTimeout(() => {
           router.push('/login');
-        }, 3000);
+        }, 5000);
       }
     }
 

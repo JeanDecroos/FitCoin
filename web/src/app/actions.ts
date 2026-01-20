@@ -7,10 +7,19 @@ import { getCurrentUserId, setUserId, getSupabaseAuthUser, linkAuthUserToUser } 
 
 // Authentication actions
 export async function signUpAction(name: string, email: string, password: string) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:9',message:'signUpAction entry',data:{name,email},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'ALL'})}).catch(()=>{});
-  // #endregion
   const supabase = await createServerSupabaseClient();
+  
+  // Check if user with this name already exists BEFORE creating auth user
+  // This prevents creating orphaned auth users if the name is taken
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('name', name.trim())
+    .maybeSingle();
+
+  if (existingUser) {
+    return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
+  }
   
   // Configure email verification redirect URL
   // This URL is where users will be redirected after clicking the verification link in their email
@@ -37,55 +46,17 @@ export async function signUpAction(name: string, email: string, password: string
     },
   });
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:36',message:'signUp response',data:{hasError:!!error,error:error?.message,hasUser:!!data?.user,userId:data?.user?.id,userEmail:data?.user?.email,emailConfirmed:!!data?.user?.email_confirmed_at},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   if (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:38',message:'signUp error path',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'ALL'})}).catch(()=>{});
-    // #endregion
     return { success: false, error: error.message };
   }
 
   if (!data.user) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:42',message:'no user in response',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     return { success: false, error: 'Failed to create user' };
-  }
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:58',message:'auth user details before insert',data:{authUserId:data.user.id,emailConfirmed:!!data.user.email_confirmed_at,hasEmail:!!data.user.email},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
-  // Create user record in the database and link to auth user
-  // Check if user with this name already exists
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:57',message:'checking name uniqueness',data:{name:name.trim()},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  const { data: existingUser } = await supabase
-    .from('users')
-    .select('id')
-    .eq('name', name)
-    .single();
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:65',message:'name uniqueness check result',data:{nameExists:!!existingUser},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-
-  if (existingUser) {
-    // User with this name already exists - return error
-    // Note: We still have the auth user created, but they won't have a linked record
-    return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
   }
 
   // Create new user record with default balance of 200 fitcoins
   // Try inserting with auth_user_id first. If it fails due to foreign key constraint,
   // we'll create without it and link later during email confirmation.
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:75',message:'before insert users with auth_user_id',data:{authUserId:data.user.id,name:name.trim(),balance:200,emailConfirmed:!!data.user.email_confirmed_at},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
   let { data: newUser, error: createError } = await supabase
     .from('users')
     .insert({
@@ -98,16 +69,8 @@ export async function signUpAction(name: string, email: string, password: string
     .select()
     .single();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:87',message:'after insert users attempt',data:{hasError:!!createError,errorCode:createError?.code,errorMessage:createError?.message,hasNewUser:!!newUser},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   // If insert failed due to foreign key constraint (23503), create without auth_user_id and link later
   if (createError && createError.code === '23503') {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:92',message:'foreign key violation - creating user without auth_user_id',data:{authUserId:data.user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     // Create user without auth_user_id (will be linked after email confirmation)
     const { data: userWithoutAuth, error: createWithoutAuthError } = await supabase
       .from('users')
@@ -120,10 +83,6 @@ export async function signUpAction(name: string, email: string, password: string
       })
       .select()
       .single();
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:105',message:'user created without auth_user_id',data:{hasError:!!createWithoutAuthError,hasUser:!!userWithoutAuth,userId:userWithoutAuth?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     if (createWithoutAuthError) {
       // Handle database constraint errors (e.g., unique name violation)
@@ -144,26 +103,15 @@ export async function signUpAction(name: string, email: string, password: string
     if (createError.code === '23505') { // Unique violation error code
       return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:120',message:'insert error path',data:{code:createError.code,message:createError.message,details:createError.details},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     return { success: false, error: createError.message || 'Failed to create user profile' };
   }
 
   // If user was created without auth_user_id, try to link it now (auth user should exist by now)
   if (newUser && !newUser.auth_user_id) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:127',message:'attempting to link auth_user_id',data:{userId:newUser.id,authUserId:data.user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     const { error: linkError } = await supabase
       .from('users')
       .update({ auth_user_id: data.user.id })
       .eq('id', newUser.id);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:133',message:'link auth_user_id result',data:{hasError:!!linkError,errorMessage:linkError?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
 
     // If linking fails, it's okay - user can still sign up and we'll link during email confirmation
     if (linkError) {
@@ -171,9 +119,6 @@ export async function signUpAction(name: string, email: string, password: string
     }
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/2862abf4-b9a0-4172-9421-cc2e3fb38c05',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:125',message:'signUpAction success',data:{userId:newUser?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'ALL'})}).catch(()=>{});
-  // #endregion
   revalidatePath('/');
   return { success: true, user: data.user };
 }
