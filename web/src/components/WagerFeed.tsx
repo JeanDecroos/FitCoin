@@ -1,14 +1,13 @@
 'use client';
 
 import { Tables } from '@/types/supabase';
-import { counterWagerAction, cancelWagerAction } from '@/app/actions';
-import { TrendingUp, TrendingDown, CheckCircle, XCircle } from 'lucide-react';
+import { cancelWagerAction } from '@/app/actions';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Wager = Tables<'wagers'> & {
   creator: User;
   target_user: User;
-  counter_user: User | null;
 };
 
 interface WagerFeedProps {
@@ -18,17 +17,6 @@ interface WagerFeedProps {
 }
 
 export default function WagerFeed({ wagers, userId, onUpdate }: WagerFeedProps) {
-  async function handleCounter(wagerId: string) {
-    if (!confirm('Are you sure you want to counter this bet?')) return;
-
-    try {
-      await counterWagerAction(wagerId, userId);
-      onUpdate();
-    } catch (error: any) {
-      alert(error.message || 'Failed to counter bet');
-    }
-  }
-
   async function handleCancel(wagerId: string) {
     if (!confirm('Are you sure you want to cancel this bet? You will get a refund.')) return;
 
@@ -43,7 +31,6 @@ export default function WagerFeed({ wagers, userId, onUpdate }: WagerFeedProps) 
   function getStatusBadge(status: string) {
     const badges = {
       OPEN: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
-      MATCHED: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
       SETTLED: 'bg-green-500/20 text-green-400 border-green-500/50',
       CANCELLED: 'bg-gray-500/20 text-gray-400 border-gray-500/50',
     };
@@ -97,15 +84,6 @@ export default function WagerFeed({ wagers, userId, onUpdate }: WagerFeedProps) 
               </span>
             </div>
 
-            {wager.status === 'MATCHED' && wager.counter_user && (
-              <div className="flex items-center gap-2 text-sm text-gray-300 mb-3">
-                <CheckCircle className="w-4 h-4 text-blue-400" />
-                <span>
-                  Countered by <span className="font-semibold text-blue-400">{wager.counter_user.name}</span>
-                </span>
-              </div>
-            )}
-
             {wager.status === 'SETTLED' && wager.winner_id && (
               <div className="flex items-center gap-2 text-sm text-gray-300 mb-3">
                 {wager.winner_id === wager.creator_id ? (
@@ -115,21 +93,13 @@ export default function WagerFeed({ wagers, userId, onUpdate }: WagerFeedProps) 
                 )}
                 <span>
                   Winner: <span className="font-semibold text-green-400">
-                    {wager.winner_id === wager.creator_id ? wager.creator.name : wager.counter_user?.name}
+                    {wager.winner_id === wager.creator_id ? wager.creator.name : 'Unknown'}
                   </span>
                 </span>
               </div>
             )}
 
             <div className="flex gap-2">
-              {wager.status === 'OPEN' && wager.creator_id !== userId && (
-                <button
-                  onClick={() => handleCounter(wager.id)}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  Counter this Bet
-                </button>
-              )}
               {wager.status === 'OPEN' && wager.creator_id === userId && (
                 <button
                   onClick={() => handleCancel(wager.id)}

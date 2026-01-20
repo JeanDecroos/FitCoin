@@ -276,53 +276,6 @@ export async function createWagerAction(
   revalidatePath('/dashboard');
 }
 
-export async function counterWagerAction(wagerId: string, counterId: string) {
-  const supabase = await createServerSupabaseClient();
-  
-  // Get wager details
-  const { data: wager, error: wagerFetchError } = await supabase
-    .from('wagers')
-    .select('amount, creator_id, status')
-    .eq('id', wagerId)
-    .single();
-
-  if (wagerFetchError || !wager) throw wagerFetchError || new Error('Wager not found');
-  if (wager.status !== 'OPEN') throw new Error('Wager is not open');
-  if (wager.creator_id === counterId) throw new Error('Cannot counter your own wager');
-
-  // Check counter balance
-  const { data: counter } = await supabase
-    .from('users')
-    .select('balance')
-    .eq('id', counterId)
-    .single();
-
-  if (!counter || counter.balance < wager.amount) {
-    throw new Error('Insufficient balance');
-  }
-
-  // Deduct from counter
-  const { error: deductError } = await supabase
-    .from('users')
-    .update({ balance: counter.balance - wager.amount })
-    .eq('id', counterId);
-
-  if (deductError) throw deductError;
-
-  // Update wager
-  const { error: updateError } = await supabase
-    .from('wagers')
-    .update({
-      counter_id: counterId,
-      status: 'MATCHED',
-    })
-    .eq('id', wagerId);
-
-  if (updateError) throw updateError;
-
-  revalidatePath('/dashboard');
-}
-
 export async function cancelWagerAction(wagerId: string, userId: string) {
   const supabase = await createServerSupabaseClient();
   
@@ -379,13 +332,13 @@ export async function resolveChallengeAction(
 
   if (challengeError) throw challengeError;
 
-  // Find all matched wagers for this user/challenge type
+  // Find all open wagers for this user/challenge type
   const { data: wagers, error: wagersError } = await supabase
     .from('wagers')
     .select('*')
     .eq('target_user_id', userId)
     .eq('challenge_type', challengeType)
-    .eq('status', 'MATCHED');
+    .eq('status', 'OPEN');
 
   if (wagersError) throw wagersError;
 
@@ -393,35 +346,48 @@ export async function resolveChallengeAction(
   for (const wager of wagers || []) {
     const predictedPass = wager.prediction === 'PASS';
     const actualPass = status === 'PASSED';
-    const winnerId = predictedPass === actualPass ? wager.creator_id : wager.counter_id!;
+    const predictionCorrect = predictedPass === actualPass;
 
-    // Award pot (2x amount) to winner
-    const { data: winner } = await supabase
-      .from('users')
-      .select('balance')
-      .eq('id', winnerId)
-      .single();
-
-    if (winner) {
-      const pot = wager.amount * 2;
-      const { error: awardError } = await supabase
+    if (predictionCorrect) {
+      // Creator wins: award 2x their bet (bet back + reward)
+      const { data: creator } = await supabase
         .from('users')
-        .update({ balance: winner.balance + pot })
-        .eq('id', winnerId);
+        .select('balance')
+        .eq('id', wager.creator_id)
+        .single();
 
-      if (awardError) throw awardError;
+      if (creator) {
+        const pot = wager.amount * 2;
+        const { error: awardError } = await supabase
+          .from('users')
+          .update({ balance: creator.balance + pot })
+          .eq('id', wager.creator_id);
+
+        if (awardError) throw awardError;
+      }
+
+      // Mark wager as settled with winner
+      const { error: settleError } = await supabase
+        .from('wagers')
+        .update({
+          status: 'SETTLED',
+          winner_id: wager.creator_id,
+        })
+        .eq('id', wager.id);
+
+      if (settleError) throw settleError;
+    } else {
+      // Creator loses: bet already deducted, just mark as settled
+      const { error: settleError } = await supabase
+        .from('wagers')
+        .update({
+          status: 'SETTLED',
+          winner_id: null,
+        })
+        .eq('id', wager.id);
+
+      if (settleError) throw settleError;
     }
-
-    // Mark wager as settled
-    const { error: settleError } = await supabase
-      .from('wagers')
-      .update({
-        status: 'SETTLED',
-        winner_id: winnerId,
-      })
-      .eq('id', wager.id);
-
-    if (settleError) throw settleError;
   }
 
   revalidatePath('/admin');

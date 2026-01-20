@@ -15,7 +15,6 @@ type User = Tables<'users'>;
 type Wager = Tables<'wagers'> & {
   creator: User;
   target_user: User;
-  counter_user: User | null;
 };
 
 interface DashboardContentProps {
@@ -69,8 +68,7 @@ export default function DashboardContent({ userId }: DashboardContentProps) {
         .select(`
           *,
           creator:users!wagers_creator_id_fkey(*),
-          target_user:users!wagers_target_user_id_fkey(*),
-          counter_user:users!wagers_counter_id_fkey(*)
+          target_user:users!wagers_target_user_id_fkey(*)
         `)
         .order('created_at', { ascending: false })
         .limit(50);
