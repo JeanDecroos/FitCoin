@@ -1,17 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
 import { createServerSupabaseClient } from '@/lib/supabase';
-import { setSession, clearSession } from '@/lib/auth';
+import { clearSession } from '@/lib/auth';
 
 // Authentication actions
 export async function signUpAction(name: string, email: string, password: string) {
   try {
     const supabase = await createServerSupabaseClient();
     
-    // Check if user with this name or email already exists
+    // Check if user with this name already exists
     const { data: existingUserByName, error: nameCheckError } = await supabase
       .from('users')
       .select('id')
@@ -24,54 +22,44 @@ export async function signUpAction(name: string, email: string, password: string
       if (nameCheckError.code === '42501' || nameCheckError.message?.includes('row-level security') || nameCheckError.message?.includes('RLS')) {
         return { success: false, error: 'Permission denied. Please ensure Row Level Security policies are configured. Contact support.' };
       }
-      // If the error is about missing column, the migration hasn't been run
-      if (nameCheckError.message?.includes('column') || nameCheckError.code === '42703') {
-        return { success: false, error: 'Database migration not applied. Please contact support.' };
-      }
     }
 
     if (existingUserByName) {
       return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
     }
 
-    const { data: existingUserByEmail, error: emailCheckError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase().trim())
-      .maybeSingle();
+    // Create auth user in Supabase Auth (email verification disabled)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: email.toLowerCase().trim(),
+      password: password,
+      options: {
+        emailRedirectTo: undefined, // Disable email verification
+        data: {
+          name: name.trim(),
+        },
+      },
+    });
 
-    if (emailCheckError) {
-      console.error('Error checking existing user by email:', emailCheckError);
-      // Handle RLS errors
-      if (emailCheckError.code === '42501' || emailCheckError.message?.includes('row-level security') || emailCheckError.message?.includes('RLS')) {
-        return { success: false, error: 'Permission denied. Please ensure Row Level Security policies are configured. Contact support.' };
+    if (authError) {
+      console.error('Error creating auth user:', authError);
+      // Handle email already exists error
+      if (authError.message?.includes('already registered') || authError.message?.includes('User already registered')) {
+        return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
       }
-      // If the error is about missing column, the migration hasn't been run
-      if (emailCheckError.message?.includes('column') || emailCheckError.code === '42703') {
-        return { success: false, error: 'Database migration not applied. Please contact support.' };
-      }
+      return { success: false, error: authError.message || 'Failed to create account. Please try again.' };
     }
 
-    if (existingUserByEmail) {
-      return { success: false, error: 'A user with this email already exists. Please use a different email or sign in.' };
+    if (!authData.user) {
+      return { success: false, error: 'Failed to create account' };
     }
 
-    // Hash password
-    let passwordHash: string;
-    try {
-      passwordHash = await bcrypt.hash(password, 10);
-    } catch (bcryptError: any) {
-      console.error('Error hashing password:', bcryptError);
-      return { success: false, error: 'Failed to process password. Please try again.' };
-    }
-
-    // Create new user record with default balance of 200 fitcoins
+    // Create corresponding user record in public.users with auth_user_id
     const { data: newUser, error: createError } = await supabase
       .from('users')
       .insert({
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        password_hash: passwordHash,
+        auth_user_id: authData.user.id,
         balance: 200,
         is_admin: false,
         goals_set: false,
@@ -80,11 +68,10 @@ export async function signUpAction(name: string, email: string, password: string
       .single();
 
     if (createError) {
-      console.error('Error creating user:', createError);
-      // Handle RLS (Row Level Security) errors
-      if (createError.code === '42501' || createError.message?.includes('row-level security') || createError.message?.includes('RLS')) {
-        return { success: false, error: 'Permission denied. Please ensure Row Level Security policies are configured. Contact support.' };
-      }
+      console.error('Error creating user record:', createError);
+      // If user record creation fails, try to clean up auth user
+      // Note: We can't easily delete auth user from server action, but the unique constraint will prevent issues
+      
       // Handle database constraint errors
       if (createError.code === '23505') { // Unique violation error code
         if (createError.message.includes('email')) {
@@ -92,26 +79,14 @@ export async function signUpAction(name: string, email: string, password: string
         }
         return { success: false, error: 'A user with this name already exists. Please choose a different name.' };
       }
-      // Check if columns don't exist (migration not run)
-      if (createError.message?.includes('column') || createError.code === '42703') {
-        return { success: false, error: 'Database migration not applied. The email and password_hash columns are missing. Please contact support.' };
-      }
-      return { success: false, error: createError.message || 'Failed to create user' };
+      return { success: false, error: createError.message || 'Failed to create user profile. Please try again.' };
     }
 
     if (!newUser) {
-      return { success: false, error: 'Failed to create user' };
+      return { success: false, error: 'Failed to create user profile' };
     }
 
-    // Set session immediately (no email verification needed)
-    try {
-      await setSession(newUser.id);
-    } catch (sessionError: any) {
-      console.error('Error setting session:', sessionError);
-      // User was created but session failed - still return success but log the error
-      // The user can log in manually
-    }
-
+    // Session is automatically set by Supabase Auth signUp
     revalidatePath('/');
     return { success: true, user: newUser };
   } catch (error: any) {
@@ -121,35 +96,39 @@ export async function signUpAction(name: string, email: string, password: string
 }
 
 export async function signInAction(email: string, password: string) {
-  const supabase = await createServerSupabaseClient();
-  
-  // Find user by email
-  const { data: user, error: fetchError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('email', email.toLowerCase().trim())
-    .single();
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // Sign in using Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password: password,
+    });
 
-  if (fetchError || !user) {
-    return { success: false, error: 'Invalid email or password' };
+    if (authError || !authData.user) {
+      return { success: false, error: 'Invalid email or password' };
+    }
+
+    // Get the corresponding user record from public.users
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('auth_user_id', authData.user.id)
+      .single();
+
+    if (fetchError || !user) {
+      // Auth user exists but no public.users record - this shouldn't happen but handle gracefully
+      console.error('User found in auth but not in public.users:', authData.user.id);
+      return { success: false, error: 'Account not properly set up. Please contact support.' };
+    }
+
+    // Session is automatically set by Supabase Auth signIn
+    revalidatePath('/');
+    return { success: true, user };
+  } catch (error: any) {
+    console.error('Unexpected error in signInAction:', error);
+    return { success: false, error: error.message || 'An unexpected error occurred. Please try again.' };
   }
-
-  // Check if user has a password hash (for existing users who might not have one yet)
-  if (!user.password_hash) {
-    return { success: false, error: 'Account not set up. Please contact support.' };
-  }
-
-  // Verify password
-  const passwordMatch = await bcrypt.compare(password, user.password_hash);
-  if (!passwordMatch) {
-    return { success: false, error: 'Invalid email or password' };
-  }
-
-  // Set session
-  await setSession(user.id);
-
-  revalidatePath('/');
-  return { success: true, user };
 }
 
 export async function signOutAction() {
@@ -161,78 +140,33 @@ export async function signOutAction() {
 export async function forgotPasswordAction(email: string) {
   const supabase = await createServerSupabaseClient();
   
-  // Find user by email
-  const { data: user, error: fetchError } = await supabase
-    .from('users')
-    .select('id')
-    .eq('email', email.toLowerCase().trim())
-    .single();
-
+  // Use Supabase Auth password reset
+  // This will send an email with a reset link
   // Don't reveal if email exists or not (security best practice)
-  if (fetchError || !user) {
-    // Still return success to prevent email enumeration
-    return { success: true };
+  const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/reset-password`,
+  });
+
+  // Always return success to prevent email enumeration
+  // If there's an error, log it but don't reveal to user
+  if (error) {
+    console.error('Error sending password reset email:', error);
   }
-
-  // Generate secure reset token
-  const resetToken = randomBytes(32).toString('hex');
-  const resetTokenExpires = new Date();
-  resetTokenExpires.setHours(resetTokenExpires.getHours() + 1); // 1 hour expiration
-
-  // Store reset token in database
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({
-      reset_token: resetToken,
-      reset_token_expires: resetTokenExpires.toISOString(),
-    })
-    .eq('id', user.id);
-
-  if (updateError) {
-    return { success: false, error: 'Failed to generate reset token. Please try again.' };
-  }
-
-  // TODO: Send email with reset link
-  // For now, we'll just return success
-  // The reset link would be: ${baseUrl}/reset-password?token=${resetToken}
   
   return { success: true };
 }
 
-export async function resetPasswordAction(token: string, newPassword: string) {
+export async function resetPasswordAction(newPassword: string) {
   const supabase = await createServerSupabaseClient();
   
-  // Find user by reset token
-  const { data: user, error: fetchError } = await supabase
-    .from('users')
-    .select('id, reset_token_expires')
-    .eq('reset_token', token)
-    .single();
+  // Update password using Supabase Auth
+  // The user must have a valid session from the password reset link
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
 
-  if (fetchError || !user) {
-    return { success: false, error: 'Invalid or expired reset token' };
-  }
-
-  // Check if token is expired
-  if (!user.reset_token_expires || new Date(user.reset_token_expires) < new Date()) {
-    return { success: false, error: 'Reset token has expired. Please request a new one.' };
-  }
-
-  // Hash new password
-  const passwordHash = await bcrypt.hash(newPassword, 10);
-
-  // Update password and clear reset token
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({
-      password_hash: passwordHash,
-      reset_token: null,
-      reset_token_expires: null,
-    })
-    .eq('id', user.id);
-
-  if (updateError) {
-    return { success: false, error: 'Failed to reset password. Please try again.' };
+  if (error) {
+    return { success: false, error: error.message || 'Failed to reset password. Please try again.' };
   }
 
   return { success: true };

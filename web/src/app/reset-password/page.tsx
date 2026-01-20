@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { resetPasswordAction } from '@/app/actions';
 import { Lock, CheckCircle } from 'lucide-react';
 
 function ResetPasswordContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -15,13 +14,17 @@ function ResetPasswordContent() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const token = searchParams.get('token');
-
+  // Supabase Auth uses hash fragments (#access_token=...) for password reset
+  // We need to handle this in the client component
   useEffect(() => {
-    if (!token) {
-      setError('Invalid reset link. Please request a new password reset.');
+    // Check if we have the hash fragment with Supabase tokens
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (!hash || !hash.includes('access_token')) {
+        setError('Invalid reset link. Please request a new password reset.');
+      }
     }
-  }, [token]);
+  }, []);
 
   function validatePasswords() {
     if (password && confirmPassword && password !== confirmPassword) {
@@ -46,10 +49,8 @@ function ResetPasswordContent() {
     setError('');
     setPasswordMismatch(false);
 
-    if (!token) {
-      setError('Invalid reset link. Please request a new password reset.');
-      return;
-    }
+    // Supabase Auth handles token validation automatically via session
+    // The hash fragment contains the session token
 
     // Validate passwords match
     if (!validatePasswords()) {
@@ -66,7 +67,7 @@ function ResetPasswordContent() {
     setLoading(true);
 
     try {
-      const result = await resetPasswordAction(token, password);
+      const result = await resetPasswordAction(password);
       if (result.success) {
         setSuccess(true);
         setTimeout(() => {
@@ -168,7 +169,7 @@ function ResetPasswordContent() {
 
             <button
               type="submit"
-              disabled={loading || passwordMismatch || !password || !confirmPassword || !token}
+              disabled={loading || passwordMismatch || !password || !confirmPassword}
               className="w-full py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900 font-semibold rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
             >
               {loading ? 'Resetting...' : 'Reset Password'}
