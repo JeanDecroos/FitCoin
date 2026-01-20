@@ -49,12 +49,12 @@ export default function GoalsForm({ userId }: GoalsFormProps) {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            DEXA / Physique Goal
+            Biological goal
           </label>
           <textarea
             value={dexaGoal}
             onChange={(e) => setDexaGoal(e.target.value)}
-            placeholder="e.g., Lose 5% Body Fat"
+            placeholder="At this moment I have 25,7% body fat, and by the second DEXA scan, I want to go under 20% body fat."
             className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none"
             rows={3}
             required
@@ -63,12 +63,12 @@ export default function GoalsForm({ userId }: GoalsFormProps) {
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            Functional Goal
+            Functional goal
           </label>
           <textarea
             value={functionalGoal}
             onChange={(e) => setFunctionalGoal(e.target.value)}
-            placeholder="e.g., Run 20k in under 2 hours"
+            placeholder="Before the second DEXA scan, I want to run 10k in 45 minutes or less."
             className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-none"
             rows={3}
             required
