@@ -58,6 +58,7 @@ export type Database = {
       users: {
         Row: {
           avatar_url: string | null
+          auth_user_id: string | null
           balance: number
           created_at: string
           email: string
@@ -72,6 +73,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          auth_user_id?: string | null
           balance?: number
           created_at?: string
           email: string
@@ -79,13 +81,14 @@ export type Database = {
           id?: string
           is_admin?: boolean
           name: string
-          password_hash: string
+          password_hash?: string
           reset_token?: string | null
           reset_token_expires?: string | null
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          auth_user_id?: string | null
           balance?: number
           created_at?: string
           email?: string
