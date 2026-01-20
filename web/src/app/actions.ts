@@ -9,7 +9,17 @@ import { getCurrentUserId, setUserId, getSupabaseAuthUser, linkAuthUserToUser } 
 export async function signUpAction(name: string, email: string, password: string) {
   const supabase = await createServerSupabaseClient();
   
-  // Get the base URL for redirect (use environment variable or default)
+  // Configure email verification redirect URL
+  // This URL is where users will be redirected after clicking the verification link in their email
+  // 
+  // IMPORTANT: The URL must be whitelisted in Supabase Dashboard:
+  // - Go to Authentication → URL Configuration → Redirect URLs
+  // - Add both production and localhost URLs:
+  //   - https://ddfitcoin.netlify.app/auth/confirm (production)
+  //   - http://localhost:3000/auth/confirm (local development)
+  //
+  // If the URL is not whitelisted, Supabase will fall back to the Site URL configured in the dashboard
+  // See SUPABASE_SETUP.md for detailed configuration instructions
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://ddfitcoin.netlify.app';
   const redirectTo = `${baseUrl}/auth/confirm`;
   
@@ -17,6 +27,9 @@ export async function signUpAction(name: string, email: string, password: string
     email,
     password,
     options: {
+      // This redirect URL is included in the verification email
+      // Supabase will redirect users here after they verify their email
+      // The redirect only works if the URL is in the Supabase Redirect URLs whitelist
       emailRedirectTo: redirectTo,
     },
   });

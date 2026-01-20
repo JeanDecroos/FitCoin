@@ -1,5 +1,25 @@
 'use client';
 
+/**
+ * Email Verification Confirmation Page
+ * 
+ * This page handles email verification after users sign up. When a user clicks the
+ * verification link in their email, Supabase redirects them here with authentication
+ * tokens in the URL (either as hash fragments or query parameters).
+ * 
+ * Flow:
+ * 1. User clicks verification link in email → Supabase verifies token
+ * 2. Supabase redirects to this page with session tokens
+ * 3. This page extracts tokens and creates a session
+ * 4. User is redirected to the goals page to set up their challenge
+ * 
+ * The redirect URL is configured in:
+ * - Supabase Dashboard: Authentication → URL Configuration → Redirect URLs
+ * - Code: web/src/app/actions.ts (signUpAction emailRedirectTo)
+ * 
+ * See SUPABASE_SETUP.md for configuration details.
+ */
+
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -51,11 +71,11 @@ function ConfirmContent() {
           }
 
           setStatus('success');
-          setMessage('Email verified successfully! Redirecting...');
+          setMessage('Email verified successfully! Redirecting to goals...');
           
-          // Wait a moment to show success message, then redirect
+          // Wait a moment to show success message, then redirect to goals page
           setTimeout(() => {
-            router.push('/');
+            router.push('/goals');
             router.refresh();
           }, 2000);
           return;
@@ -113,10 +133,10 @@ function ConfirmContent() {
           }
 
           setStatus('success');
-          setMessage('Email verified successfully! Redirecting...');
+          setMessage('Email verified successfully! Redirecting to goals...');
           
           setTimeout(() => {
-            router.push('/');
+            router.push('/goals');
             router.refresh();
           }, 2000);
           return;
@@ -127,9 +147,9 @@ function ConfirmContent() {
         
         if (session) {
           setStatus('success');
-          setMessage('Email already verified! Redirecting...');
+          setMessage('Email already verified! Redirecting to goals...');
           setTimeout(() => {
-            router.push('/');
+            router.push('/goals');
             router.refresh();
           }, 2000);
           return;
