@@ -10,38 +10,39 @@
   </style>
   <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; background-color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;">
-  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #1f2937;">
+<body style="margin: 0; padding: 0; background-color: #111827; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #111827; padding: 40px 20px;">
     <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #1f2937; border-radius: 16px; overflow: hidden;">
+      <td align="center">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #1f2937; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);">
           
           <!-- Header with Logo -->
           <tr>
-            <td align="center" style="padding: 40px 20px 30px;">
-              <div style="display: inline-block; width: 80px; height: 80px; background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%); border-radius: 50%; text-align: center; line-height: 80px; margin-bottom: 20px;">
-                <span style="font-size: 36px; font-weight: bold; color: #111827;">₿</span>
+            <td align="center" style="padding: 50px 30px 30px; background: linear-gradient(135deg, #1f2937 0%, #111827 100%);">
+              <div style="display: inline-block; width: 80px; height: 80px; background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%); border-radius: 50%; text-align: center; line-height: 80px; margin-bottom: 20px; box-shadow: 0 8px 16px rgba(251, 191, 36, 0.3);">
+                <span style="font-size: 40px; font-weight: bold; color: #111827;">₿</span>
               </div>
-              <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: bold; text-align: center;">Welcome to FitCoin!</h1>
+              <h1 style="margin: 0 0 10px; color: #ffffff; font-size: 32px; font-weight: bold; text-align: center; letter-spacing: -0.5px;">Welcome to FitCoin!</h1>
+              <p style="margin: 0; color: #9ca3af; font-size: 16px; text-align: center;">Confirm your email to get started</p>
             </td>
           </tr>
 
           <!-- Main Content Card -->
           <tr>
-            <td style="background-color: #374151; border-radius: 12px; padding: 40px 30px; border: 1px solid #4b5563;">
-              <p style="margin: 0 0 20px; color: #d1d5db; font-size: 16px; line-height: 1.6;">
+            <td style="background-color: #374151; padding: 40px 30px;">
+              <p style="margin: 0 0 20px; color: #e5e7eb; font-size: 16px; line-height: 1.7;">
                 Thanks for signing up! We're excited to have you join the FitCoin challenge.
               </p>
               
-              <p style="margin: 0 0 30px; color: #d1d5db; font-size: 16px; line-height: 1.6;">
-                To get started, please confirm your email address by clicking the button below:
+              <p style="margin: 0 0 35px; color: #d1d5db; font-size: 16px; line-height: 1.7;">
+                To activate your account and start setting your fitness goals, please confirm your email address by clicking the button below:
               </p>
 
               <!-- CTA Button -->
               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                 <tr>
                   <td align="center" style="padding: 0 0 30px;">
-                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%); color: #111827; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);">
+                    <a href="{{ .ConfirmationURL }}" style="display: inline-block; padding: 16px 48px; background: linear-gradient(135deg, #fbbf24 0%, #f97316 100%); color: #111827; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; text-align: center; box-shadow: 0 4px 14px rgba(251, 191, 36, 0.4); transition: all 0.3s ease;">
                       Confirm Your Email
                     </a>
                   </td>
@@ -49,17 +50,19 @@
               </table>
 
               <!-- Alternative Link -->
-              <p style="margin: 0 0 20px; color: #9ca3af; font-size: 14px; line-height: 1.6; text-align: center;">
-                Or copy and paste this link into your browser:
-              </p>
-              <p style="margin: 0 0 30px; color: #60a5fa; font-size: 12px; line-height: 1.6; word-break: break-all; text-align: center; padding: 12px; background-color: #1f2937; border-radius: 6px; border: 1px solid #374151;">
-                {{ .ConfirmationURL }}
-              </p>
+              <div style="background-color: #1f2937; border-radius: 8px; padding: 20px; border: 1px solid #4b5563; margin-bottom: 30px;">
+                <p style="margin: 0 0 12px; color: #9ca3af; font-size: 13px; line-height: 1.5; text-align: center; font-weight: 500;">
+                  If the button doesn't work, copy and paste this link into your browser:
+                </p>
+                <p style="margin: 0; color: #60a5fa; font-size: 13px; line-height: 1.6; word-break: break-all; text-align: center; padding: 12px; background-color: #111827; border-radius: 6px; border: 1px solid #374151; font-family: 'Courier New', monospace;">
+                  {{ .ConfirmationURL }}
+                </p>
+              </div>
 
               <!-- Security Note -->
-              <div style="margin-top: 30px; padding: 16px; background-color: #1f2937; border-radius: 8px; border-left: 4px solid #fbbf24;">
-                <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5;">
-                  <strong style="color: #fbbf24;">Security Note:</strong> This link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.
+              <div style="margin-top: 30px; padding: 16px 20px; background-color: #1f2937; border-radius: 8px; border-left: 4px solid #fbbf24;">
+                <p style="margin: 0; color: #d1d5db; font-size: 13px; line-height: 1.6;">
+                  <strong style="color: #fbbf24;">🔒 Security Note:</strong> This verification link will expire in 24 hours. If you didn't create a FitCoin account, you can safely ignore this email.
                 </p>
               </div>
             </td>
@@ -67,12 +70,12 @@
 
           <!-- Footer -->
           <tr>
-            <td align="center" style="padding: 30px 20px 20px;">
-              <p style="margin: 0 0 10px; color: #6b7280; font-size: 14px; line-height: 1.6;">
-                Need help? Contact us at <a href="mailto:support@fitcoin.com" style="color: #fbbf24; text-decoration: none;">support@fitcoin.com</a>
+            <td align="center" style="padding: 30px 30px 40px; background-color: #1f2937;">
+              <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px; line-height: 1.6;">
+                Need help? Contact us at <a href="mailto:support@fitcoin.com" style="color: #fbbf24; text-decoration: none; font-weight: 500;">support@fitcoin.com</a>
               </p>
               <p style="margin: 0; color: #4b5563; font-size: 12px;">
-                © 2024 FitCoin. All rights reserved.
+                © 2024 FitCoin Challenge. All rights reserved.
               </p>
             </td>
           </tr>
