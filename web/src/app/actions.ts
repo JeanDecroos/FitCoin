@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { createServerSupabaseClient } from '@/lib/supabase';
 import { setSession, clearSession } from '@/lib/auth';
