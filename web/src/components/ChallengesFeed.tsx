@@ -13,10 +13,29 @@ type Challenge = Tables<'challenges'> & {
 export default function ChallengesFeed() {
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [fade, setFade] = useState(true);
 
   useEffect(() => {
     fetchChallenges();
   }, []);
+
+  useEffect(() => {
+    if (challenges.length === 0) return;
+
+    const interval = setInterval(() => {
+      // Fade out
+      setFade(false);
+      
+      // After fade animation, change index and fade in
+      setTimeout(() => {
+        setCurrentIndex((prevIndex) => (prevIndex + 1) % challenges.length);
+        setFade(true);
+      }, 250); // Half of transition duration
+    }, 10000); // 10 seconds
+
+    return () => clearInterval(interval);
+  }, [challenges.length]);
 
   async function fetchChallenges() {
     const { data, error } = await supabase
@@ -55,6 +74,8 @@ export default function ChallengesFeed() {
     );
   }
 
+  const currentChallenge = challenges[currentIndex];
+
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6">
       <div className="flex items-center justify-between mb-6">
@@ -66,38 +87,41 @@ export default function ChallengesFeed() {
           View All
         </Link>
       </div>
-      <div className="space-y-4">
+      <div className="min-h-[200px] relative">
         {challenges.length > 0 ? (
-          challenges.map((challenge) => (
-            <div
-              key={challenge.id}
-              className="bg-gray-700/30 rounded-lg p-4 hover:bg-gray-700/50 transition-colors"
-            >
-              <div className="mb-2">
-                <h3 className="text-white font-semibold">{challenge.user.name}</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="text-blue-400 font-medium">DEXA:</span>{' '}
-                  <span className="text-gray-300 truncate block">{challenge.dexa_goal}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadge(challenge.dexa_status)}`}>
-                    {challenge.dexa_status}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <span className="text-purple-400 font-medium">Functional:</span>{' '}
-                  <span className="text-gray-300 truncate block">{challenge.functional_goal}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadge(challenge.functional_status)}`}>
-                    {challenge.functional_status}
-                  </span>
-                </div>
-              </div>
+          <div
+            className={`bg-gray-700/30 rounded-lg p-4 transition-opacity duration-500 ${
+              fade ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <div className="mb-2">
+              <h3 className="text-white font-semibold">{currentChallenge.user.name}</h3>
             </div>
-          ))
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="text-blue-400 font-medium">Biological:</span>{' '}
+                <span className="text-gray-300 truncate block">{currentChallenge.dexa_goal}</span>
+              </div>
+              {currentChallenge.dexa_status !== 'PENDING' && (
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadge(currentChallenge.dexa_status)}`}>
+                    {currentChallenge.dexa_status}
+                  </span>
+                </div>
+              )}
+              <div className="mt-2">
+                <span className="text-purple-400 font-medium">Functional:</span>{' '}
+                <span className="text-gray-300 truncate block">{currentChallenge.functional_goal}</span>
+              </div>
+              {currentChallenge.functional_status !== 'PENDING' && (
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadge(currentChallenge.functional_status)}`}>
+                    {currentChallenge.functional_status}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="text-gray-400 text-center py-4">No challenges found.</div>
         )}

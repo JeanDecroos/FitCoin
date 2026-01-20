@@ -9,7 +9,7 @@ import { Tables } from '@/types/supabase';
 import WagerFeed from './WagerFeed';
 import ChallengesFeed from './ChallengesFeed';
 import CreateWagerModal from './CreateWagerModal';
-import { Coins, Plus, Shield, LogOut, Target } from 'lucide-react';
+import { Coins, Plus, Shield, LogOut, Target, Settings } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Wager = Tables<'wagers'> & {
@@ -119,6 +119,13 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
             >
               <Target className="w-5 h-5" />
               Challenges
+            </Link>
+            <Link
+              href="/settings"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+              Settings
             </Link>
             {isAdmin && (
               <Link

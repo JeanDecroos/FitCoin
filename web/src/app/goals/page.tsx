@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserId } from '@/lib/auth';
 import { createServerSupabaseClient } from '@/lib/supabase';
 import GoalsForm from '@/components/GoalsForm';
+import ViewGoals from '@/components/ViewGoals';
 
 export default async function GoalsPage() {
   const userId = await getCurrentUserId();
@@ -17,14 +18,23 @@ export default async function GoalsPage() {
     .eq('id', userId)
     .single();
 
-  if (user?.goals_set) {
-    redirect('/dashboard');
-  }
+  // Fetch challenge if goals are set
+  const { data: challenge } = user?.goals_set
+    ? await supabase
+        .from('challenges')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+    : { data: null };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
       <div className="max-w-2xl mx-auto pt-12">
-        <GoalsForm userId={userId} />
+        {user?.goals_set && challenge ? (
+          <ViewGoals challenge={challenge} />
+        ) : (
+          <GoalsForm userId={userId} />
+        )}
       </div>
     </div>
   );

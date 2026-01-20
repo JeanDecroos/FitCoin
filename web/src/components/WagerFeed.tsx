@@ -50,6 +50,13 @@ export default function WagerFeed({ wagers, userId, onUpdate }: WagerFeedProps) 
     return badges[status as keyof typeof badges] || badges.OPEN;
   }
 
+  function formatChallengeType(type: string): string {
+    if (type === 'DEXA') return 'Biological';
+    if (type === 'FUNCTIONAL') return 'Functional';
+    if (type === 'BOTH') return 'Both';
+    return type;
+  }
+
   if (wagers.length === 0) {
     return (
       <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-8">
@@ -81,7 +88,7 @@ export default function WagerFeed({ wagers, userId, onUpdate }: WagerFeedProps) 
                     {wager.prediction}
                   </span>
                   {' their '}
-                  <span className="font-semibold text-blue-400">{wager.challenge_type}</span>
+                  <span className="font-semibold text-blue-400">{formatChallengeType(wager.challenge_type)}</span>
                   {' goal'}
                 </p>
               </div>

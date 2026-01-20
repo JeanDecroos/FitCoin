@@ -88,16 +88,6 @@ export default function ChallengesList() {
     setLoading(false);
   }
 
-  function getStatusBadge(status: string) {
-    if (status === 'PASSED') {
-      return 'bg-green-500/20 text-green-400 border-green-500/50';
-    }
-    if (status === 'FAILED') {
-      return 'bg-red-500/20 text-red-400 border-red-500/50';
-    }
-    return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
@@ -119,7 +109,7 @@ export default function ChallengesList() {
             </Link>
             <div className="flex-1">
               <h1 className="text-4xl font-bold text-white mb-2">All Challenges</h1>
-              <p className="text-gray-400">View all challenges and their current status</p>
+              <p className="text-gray-400">View all challenges</p>
             </div>
           </div>
           {endDate && (
@@ -162,7 +152,7 @@ export default function ChallengesList() {
                     </h2>
                     <div className="space-y-2 text-gray-300">
                       <div>
-                        <span className="font-semibold text-blue-400">DEXA Goal:</span>{' '}
+                        <span className="font-semibold text-blue-400">Biological Goal:</span>{' '}
                         {challenge.dexa_goal}
                       </div>
                       <div>

@@ -21,7 +21,7 @@ export default function CreateWagerModal({
   onSuccess,
 }: CreateWagerModalProps) {
   const [targetUserId, setTargetUserId] = useState('');
-  const [challengeType, setChallengeType] = useState<'DEXA' | 'FUNCTIONAL'>('DEXA');
+  const [challengeType, setChallengeType] = useState<'DEXA' | 'FUNCTIONAL' | 'BOTH'>('DEXA');
   const [prediction, setPrediction] = useState<'PASS' | 'FAIL'>('FAIL');
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -88,11 +88,12 @@ export default function CreateWagerModal({
             </label>
             <select
               value={challengeType}
-              onChange={(e) => setChallengeType(e.target.value as 'DEXA' | 'FUNCTIONAL')}
+              onChange={(e) => setChallengeType(e.target.value as 'DEXA' | 'FUNCTIONAL' | 'BOTH')}
               className="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
             >
-              <option value="DEXA">DEXA / Physique</option>
+              <option value="DEXA">Biological / Physique</option>
               <option value="FUNCTIONAL">Functional</option>
+              <option value="BOTH">Both</option>
             </select>
           </div>
 

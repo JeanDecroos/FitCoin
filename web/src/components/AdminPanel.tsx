@@ -308,7 +308,7 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
                   </h2>
                   <div className="space-y-2 text-gray-300">
                     <div>
-                      <span className="font-semibold text-blue-400">DEXA Goal:</span>{' '}
+                      <span className="font-semibold text-blue-400">Biological Goal:</span>{' '}
                       {challenge.dexa_goal}
                     </div>
                     <div>
@@ -320,13 +320,15 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* DEXA Challenge */}
+                {/* Biological Challenge */}
                 <div className="bg-gray-700/30 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-blue-400">DEXA Challenge</h3>
-                    <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadge(challenge.dexa_status)}`}>
-                      {challenge.dexa_status}
-                    </span>
+                    <h3 className="font-semibold text-blue-400">Biological Challenge</h3>
+                    {challenge.dexa_status !== 'PENDING' && (
+                      <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadge(challenge.dexa_status)}`}>
+                        {challenge.dexa_status}
+                      </span>
+                    )}
                   </div>
                   {challenge.dexa_status === 'PENDING' && (
                     <div className="flex gap-2">
@@ -352,9 +354,11 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
                 <div className="bg-gray-700/30 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-purple-400">Functional Challenge</h3>
-                    <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadge(challenge.functional_status)}`}>
-                      {challenge.functional_status}
-                    </span>
+                    {challenge.functional_status !== 'PENDING' && (
+                      <span className={`px-2 py-1 rounded text-xs font-medium border ${getStatusBadge(challenge.functional_status)}`}>
+                        {challenge.functional_status}
+                      </span>
+                    )}
                   </div>
                   {challenge.functional_status === 'PENDING' && (
                     <div className="flex gap-2">

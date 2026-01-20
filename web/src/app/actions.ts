@@ -230,11 +230,16 @@ export async function createChallengeAction(
 export async function createWagerAction(
   creatorId: string,
   targetUserId: string,
-  challengeType: 'DEXA' | 'FUNCTIONAL',
+  challengeType: 'DEXA' | 'FUNCTIONAL' | 'BOTH',
   prediction: 'PASS' | 'FAIL',
   amount: number
 ) {
   const supabase = await createServerSupabaseClient();
+  
+  // Determine how many wagers to create and total amount needed
+  const isBoth = challengeType === 'BOTH';
+  const totalAmount = isBoth ? amount * 2 : amount;
+  const challengeTypes: ('DEXA' | 'FUNCTIONAL')[] = isBoth ? ['DEXA', 'FUNCTIONAL'] : [challengeType as 'DEXA' | 'FUNCTIONAL'];
   
   // Deduct from creator
   const { data: creator } = await supabase
@@ -243,28 +248,30 @@ export async function createWagerAction(
     .eq('id', creatorId)
     .single();
 
-  if (!creator || creator.balance < amount) {
-    throw new Error('Insufficient balance');
+  if (!creator || creator.balance < totalAmount) {
+    throw new Error(`Insufficient balance. You need ${totalAmount} FitCoins (${isBoth ? `${amount} for each challenge type` : `${amount} total`})`);
   }
 
   const { error: deductError } = await supabase
     .from('users')
-    .update({ balance: creator.balance - amount })
+    .update({ balance: creator.balance - totalAmount })
     .eq('id', creatorId);
 
   if (deductError) throw deductError;
 
-  // Create wager
-  const { error: wagerError } = await supabase.from('wagers').insert({
-    creator_id: creatorId,
-    target_user_id: targetUserId,
-    challenge_type: challengeType,
-    prediction,
-    amount,
-    status: 'OPEN',
-  });
+  // Create wager(s) - one for each challenge type
+  for (const type of challengeTypes) {
+    const { error: wagerError } = await supabase.from('wagers').insert({
+      creator_id: creatorId,
+      target_user_id: targetUserId,
+      challenge_type: type,
+      prediction,
+      amount,
+      status: 'OPEN',
+    });
 
-  if (wagerError) throw wagerError;
+    if (wagerError) throw wagerError;
+  }
 
   revalidatePath('/dashboard');
 }
