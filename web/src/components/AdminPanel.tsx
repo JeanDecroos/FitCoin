@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { resolveChallengeAction, approveFundRequestAction, rejectFundRequestAction, unlinkAllUsersAction } from '@/app/actions';
+import { resolveChallengeAction, approveFundRequestAction, rejectFundRequestAction } from '@/app/actions';
 import { Tables } from '@/types/supabase';
-import { ArrowLeft, CheckCircle, XCircle, Coins, X, Unlink } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Coins } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Challenge = Tables<'challenges'> & {
@@ -109,19 +109,6 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
     }
   }
 
-  async function handleUnlinkAllUsers() {
-    if (!confirm('Are you sure you want to unlink all users? This will allow them to select their user again.')) {
-      return;
-    }
-
-    try {
-      await unlinkAllUsersAction();
-      alert('All users have been unlinked successfully!');
-      router.refresh();
-    } catch (error: any) {
-      alert(error.message || 'Failed to unlink users');
-    }
-  }
 
   function getStatusBadge(status: string) {
     if (status === 'PASSED') {
@@ -157,13 +144,6 @@ export default function AdminPanel({ userId }: AdminPanelProps) {
               <p className="text-gray-400 mt-1">Resolve challenge outcomes & approve fund requests</p>
             </div>
           </div>
-          <button
-            onClick={handleUnlinkAllUsers}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
-          >
-            <Unlink className="w-4 h-4" />
-            Unlink All Users
-          </button>
         </div>
 
         {/* Fund Requests Section */}
