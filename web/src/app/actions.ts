@@ -231,70 +231,100 @@ export async function createChallengeAction(
   dexaGoal: string,
   functionalGoal: string
 ) {
-  const supabase = await createServerSupabaseClient();
-  
-  // Check if user already has a challenge
-  const { data: existingChallenge } = await supabase
-    .from('challenges')
-    .select('id')
-    .eq('user_id', userId)
-    .single();
+  try {
+    const supabase = await createServerSupabaseClient();
+    
+    // Check if user already has a challenge
+    const { data: existingChallenge, error: checkError } = await supabase
+      .from('challenges')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-  if (existingChallenge) {
-    throw new Error('Challenge already exists for this user');
-  }
+    if (checkError) {
+      console.error('Error checking existing challenge:', checkError);
+      return { success: false, error: 'Failed to check for existing challenge. Please try again.' };
+    }
 
-  // Create challenge
-  const { error } = await supabase.from('challenges').insert({
-    user_id: userId,
-    dexa_goal: dexaGoal,
-    functional_goal: functionalGoal,
-  });
+    if (existingChallenge) {
+      return { success: false, error: 'Challenge already exists for this user' };
+    }
 
-  if (error) throw error;
+    // Create challenge
+    const { error: insertError } = await supabase.from('challenges').insert({
+      user_id: userId,
+      dexa_goal: dexaGoal,
+      functional_goal: functionalGoal,
+    });
 
-  // Give user 200 fitcoins (entry fee)
-  const { data: user } = await supabase
-    .from('users')
-    .select('balance')
-    .eq('id', userId)
-    .single();
+    if (insertError) {
+      console.error('Error creating challenge:', insertError);
+      return { success: false, error: insertError.message || 'Failed to create challenge. Please try again.' };
+    }
 
-  if (user) {
+    // Give user 200 fitcoins (entry fee)
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      console.error('Error fetching user:', userError);
+      return { success: false, error: 'User not found. Please try again.' };
+    }
+
     const { error: balanceError } = await supabase
       .from('users')
       .update({ balance: user.balance + 200, goals_set: true })
       .eq('id', userId);
 
-    if (balanceError) throw balanceError;
-  }
+    if (balanceError) {
+      console.error('Error updating user balance:', balanceError);
+      return { success: false, error: 'Failed to update balance. Please try again.' };
+    }
 
-  // Add 20 euros to system total (200 fitcoins = 20 euros at 10 fitcoins/euro)
-  const { data: systemSettings } = await supabase
-    .from('system_settings')
-    .select('value')
-    .eq('key', 'total_euros_in_system')
-    .single();
-
-  if (systemSettings) {
-    const newTotal = Number(systemSettings.value) + 20;
-    const { error: systemError } = await supabase
+    // Add 20 euros to system total (200 fitcoins = 20 euros at 10 fitcoins/euro)
+    const { data: systemSettings, error: settingsError } = await supabase
       .from('system_settings')
-      .update({ value: newTotal })
-      .eq('key', 'total_euros_in_system');
+      .select('value')
+      .eq('key', 'total_euros_in_system')
+      .maybeSingle();
 
-    if (systemError) throw systemError;
-  } else {
-    // Initialize if it doesn't exist
-    const { error: initError } = await supabase
-      .from('system_settings')
-      .insert({ key: 'total_euros_in_system', value: 20 });
+    if (settingsError) {
+      console.error('Error fetching system settings:', settingsError);
+      return { success: false, error: 'Failed to update system settings. Please try again.' };
+    }
 
-    if (initError) throw initError;
+    if (systemSettings) {
+      const newTotal = Number(systemSettings.value) + 20;
+      const { error: systemError } = await supabase
+        .from('system_settings')
+        .update({ value: newTotal })
+        .eq('key', 'total_euros_in_system');
+
+      if (systemError) {
+        console.error('Error updating system settings:', systemError);
+        return { success: false, error: 'Failed to update system settings. Please try again.' };
+      }
+    } else {
+      // Initialize if it doesn't exist
+      const { error: initError } = await supabase
+        .from('system_settings')
+        .insert({ key: 'total_euros_in_system', value: 20 });
+
+      if (initError) {
+        console.error('Error initializing system settings:', initError);
+        return { success: false, error: 'Failed to initialize system settings. Please try again.' };
+      }
+    }
+
+    revalidatePath('/');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error in createChallengeAction:', error);
+    return { success: false, error: error.message || 'An unexpected error occurred. Please try again.' };
   }
-
-  revalidatePath('/');
-  return { success: true };
 }
 
 export async function createWagerAction(

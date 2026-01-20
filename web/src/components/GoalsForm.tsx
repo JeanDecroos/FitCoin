@@ -28,6 +28,9 @@ export default function GoalsForm({ userId }: GoalsFormProps) {
       if (result?.success) {
         router.refresh();
         router.push('/dashboard');
+      } else {
+        alert(result?.error || 'Failed to set goals. Please try again.');
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error creating challenge:', error);
