@@ -2,22 +2,33 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { resolveChallengeAction } from '@/app/actions';
+import { resolveChallengeAction, approveFundRequestAction, rejectFundRequestAction, unlinkAllUsersAction } from '@/app/actions';
 import { Tables } from '@/types/supabase';
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Coins, X, Unlink } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Challenge = Tables<'challenges'> & {
   user: User;
 };
+type FundRequest = Tables<'fund_requests'> & {
+  user: User;
+};
 
-export default function AdminPanel() {
+interface AdminPanelProps {
+  userId: string;
+}
+
+export default function AdminPanel({ userId }: AdminPanelProps) {
+  const router = useRouter();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [fundRequests, setFundRequests] = useState<FundRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchChallenges();
+    fetchFundRequests();
   }, []);
 
   async function fetchChallenges() {
@@ -34,7 +45,50 @@ export default function AdminPanel() {
     } else {
       setChallenges((data as any) || []);
     }
+  }
+
+  async function fetchFundRequests() {
+    const { data, error } = await supabase
+      .from('fund_requests')
+      .select(`
+        *,
+        user:users!fund_requests_user_id_fkey(*)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching fund requests:', error);
+    } else {
+      setFundRequests((data as any) || []);
+    }
     setLoading(false);
+  }
+
+  async function handleApprove(requestId: string) {
+    if (!confirm('Approve this fund request? The user will receive the FitCoins.')) {
+      return;
+    }
+
+    try {
+      await approveFundRequestAction(requestId, userId);
+      fetchFundRequests();
+      alert('Fund request approved successfully!');
+    } catch (error: any) {
+      alert(error.message || 'Failed to approve fund request');
+    }
+  }
+
+  async function handleReject(requestId: string) {
+    const notes = prompt('Optional: Enter a reason for rejection:');
+    if (notes === null) return; // User cancelled
+
+    try {
+      await rejectFundRequestAction(requestId, userId, notes || undefined);
+      fetchFundRequests();
+      alert('Fund request rejected.');
+    } catch (error: any) {
+      alert(error.message || 'Failed to reject fund request');
+    }
   }
 
   async function handleResolve(
@@ -52,6 +106,20 @@ export default function AdminPanel() {
       alert('Challenge resolved successfully!');
     } catch (error: any) {
       alert(error.message || 'Failed to resolve challenge');
+    }
+  }
+
+  async function handleUnlinkAllUsers() {
+    if (!confirm('Are you sure you want to unlink all users? This will allow them to select their user again.')) {
+      return;
+    }
+
+    try {
+      await unlinkAllUsersAction();
+      alert('All users have been unlinked successfully!');
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || 'Failed to unlink users');
     }
   }
 
@@ -76,19 +144,93 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Link
-            href="/dashboard"
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Link
+              href="/dashboard"
+              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6 text-white" />
+            </Link>
+            <div>
+              <h1 className="text-4xl font-bold text-white">Admin Panel</h1>
+              <p className="text-gray-400 mt-1">Resolve challenge outcomes & approve fund requests</p>
+            </div>
+          </div>
+          <button
+            onClick={handleUnlinkAllUsers}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-6 h-6 text-white" />
-          </Link>
-          <div>
-            <h1 className="text-4xl font-bold text-white">Admin Panel</h1>
-            <p className="text-gray-400 mt-1">Resolve challenge outcomes</p>
+            <Unlink className="w-4 h-4" />
+            Unlink All Users
+          </button>
+        </div>
+
+        {/* Fund Requests Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <Coins className="w-6 h-6 text-yellow-400" />
+            Fund Requests
+          </h2>
+          <div className="space-y-4">
+            {fundRequests.filter((r) => r.status === 'PENDING').length > 0 ? (
+              fundRequests
+                .filter((r) => r.status === 'PENDING')
+                .map((request) => (
+                  <div
+                    key={request.id}
+                    className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-white mb-2">
+                          {request.user.name}
+                        </h3>
+                        <div className="space-y-2 text-gray-300">
+                          <div>
+                            <span className="font-semibold text-blue-400">Amount:</span>{' '}
+                            €{Number(request.euro_amount).toFixed(2)}
+                          </div>
+                          <div>
+                            <span className="font-semibold text-yellow-400">FitCoins:</span>{' '}
+                            {request.fitcoin_amount.toLocaleString()} FC
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            Requested: {new Date(request.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApprove(request.id)}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleReject(request.id)}
+                          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            ) : (
+              <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-6 text-center">
+                <p className="text-gray-400">No pending fund requests.</p>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* Challenges Section */}
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-4">Challenges</h2>
+        </div>
         <div className="space-y-6">
           {challenges.map((challenge) => (
             <div

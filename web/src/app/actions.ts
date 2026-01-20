@@ -2,9 +2,76 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import { getCurrentUserId, setUserId } from '@/lib/auth';
+import { createServerSupabaseClient } from '@/lib/supabase';
+import { getCurrentUserId, setUserId, getSupabaseAuthUser, linkAuthUserToUser } from '@/lib/auth';
 
+// Authentication actions
+export async function signUpAction(email: string, password: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  if (!data.user) {
+    return { success: false, error: 'Failed to create user' };
+  }
+
+  revalidatePath('/');
+  return { success: true, user: data.user };
+}
+
+export async function signInAction(email: string, password: string) {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  if (!data.user) {
+    return { success: false, error: 'Failed to sign in' };
+  }
+
+  revalidatePath('/');
+  return { success: true, user: data.user };
+}
+
+export async function signOutAction() {
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function linkAuthUserToUserAction(userId: string) {
+  const authUser = await getSupabaseAuthUser();
+  if (!authUser) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    await linkAuthUserToUser(authUser.id, userId);
+    revalidatePath('/');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to link user' };
+  }
+}
+
+// Legacy login action (kept for backward compatibility)
 export async function loginAction(userId: string) {
   await setUserId(userId);
   revalidatePath('/');
@@ -16,6 +83,20 @@ export async function createChallengeAction(
   dexaGoal: string,
   functionalGoal: string
 ) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Check if user already has a challenge
+  const { data: existingChallenge } = await supabase
+    .from('challenges')
+    .select('id')
+    .eq('user_id', userId)
+    .single();
+
+  if (existingChallenge) {
+    throw new Error('Challenge already exists for this user');
+  }
+
+  // Create challenge
   const { error } = await supabase.from('challenges').insert({
     user_id: userId,
     dexa_goal: dexaGoal,
@@ -24,12 +105,45 @@ export async function createChallengeAction(
 
   if (error) throw error;
 
-  const { error: updateError } = await supabase
+  // Give user 200 fitcoins (entry fee)
+  const { data: user } = await supabase
     .from('users')
-    .update({ goals_set: true })
-    .eq('id', userId);
+    .select('balance')
+    .eq('id', userId)
+    .single();
 
-  if (updateError) throw updateError;
+  if (user) {
+    const { error: balanceError } = await supabase
+      .from('users')
+      .update({ balance: user.balance + 200, goals_set: true })
+      .eq('id', userId);
+
+    if (balanceError) throw balanceError;
+  }
+
+  // Add 20 euros to system total (200 fitcoins = 20 euros at 10 fitcoins/euro)
+  const { data: systemSettings } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'total_euros_in_system')
+    .single();
+
+  if (systemSettings) {
+    const newTotal = Number(systemSettings.value) + 20;
+    const { error: systemError } = await supabase
+      .from('system_settings')
+      .update({ value: newTotal })
+      .eq('key', 'total_euros_in_system');
+
+    if (systemError) throw systemError;
+  } else {
+    // Initialize if it doesn't exist
+    const { error: initError } = await supabase
+      .from('system_settings')
+      .insert({ key: 'total_euros_in_system', value: 20 });
+
+    if (initError) throw initError;
+  }
 
   revalidatePath('/');
   return { success: true };
@@ -42,6 +156,8 @@ export async function createWagerAction(
   prediction: 'PASS' | 'FAIL',
   amount: number
 ) {
+  const supabase = await createServerSupabaseClient();
+  
   // Deduct from creator
   const { data: creator } = await supabase
     .from('users')
@@ -76,6 +192,8 @@ export async function createWagerAction(
 }
 
 export async function counterWagerAction(wagerId: string, counterId: string) {
+  const supabase = await createServerSupabaseClient();
+  
   // Get wager details
   const { data: wager, error: wagerFetchError } = await supabase
     .from('wagers')
@@ -121,6 +239,8 @@ export async function counterWagerAction(wagerId: string, counterId: string) {
 }
 
 export async function cancelWagerAction(wagerId: string, userId: string) {
+  const supabase = await createServerSupabaseClient();
+  
   const { data: wager, error: wagerFetchError } = await supabase
     .from('wagers')
     .select('amount, creator_id, status')
@@ -163,6 +283,8 @@ export async function resolveChallengeAction(
   challengeType: 'DEXA' | 'FUNCTIONAL',
   status: 'PASSED' | 'FAILED'
 ) {
+  const supabase = await createServerSupabaseClient();
+  
   // Update challenge status
   const updateField = challengeType === 'DEXA' ? 'dexa_status' : 'functional_status';
   const { error: challengeError } = await supabase
@@ -221,3 +343,242 @@ export async function resolveChallengeAction(
   revalidatePath('/dashboard');
 }
 
+export async function requestFundsAction(userId: string, euroAmount: number) {
+  const supabase = await createServerSupabaseClient();
+  
+  if (euroAmount <= 0) {
+    throw new Error('Euro amount must be greater than 0');
+  }
+
+  const fitcoinAmount = Math.floor(euroAmount * 10);
+
+  const { error } = await supabase.from('fund_requests').insert({
+    user_id: userId,
+    euro_amount: euroAmount,
+    fitcoin_amount: fitcoinAmount,
+    status: 'PENDING',
+  });
+
+  if (error) throw error;
+
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
+export async function approveFundRequestAction(
+  requestId: string,
+  adminId: string
+) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Verify admin
+  const { data: admin } = await supabase
+    .from('users')
+    .select('is_admin, name')
+    .eq('id', adminId)
+    .single();
+
+  if (!admin || !admin.is_admin || admin.name !== 'Bart-Jan Decroos') {
+    throw new Error('Unauthorized: Only admin can approve fund requests');
+  }
+
+  // Get fund request
+  const { data: request, error: requestError } = await supabase
+    .from('fund_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single();
+
+  if (requestError || !request) {
+    throw new Error('Fund request not found');
+  }
+
+  if (request.status !== 'PENDING') {
+    throw new Error('Fund request is not pending');
+  }
+
+  // Update user balance
+  const { data: user } = await supabase
+    .from('users')
+    .select('balance')
+    .eq('id', request.user_id)
+    .single();
+
+  if (user) {
+    const { error: balanceError } = await supabase
+      .from('users')
+      .update({ balance: user.balance + request.fitcoin_amount })
+      .eq('id', request.user_id);
+
+    if (balanceError) throw balanceError;
+  }
+
+  // Add euros to system total
+  const { data: systemSettings } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'total_euros_in_system')
+    .single();
+
+  if (systemSettings) {
+    const newTotal = Number(systemSettings.value) + Number(request.euro_amount);
+    const { error: systemError } = await supabase
+      .from('system_settings')
+      .update({ value: newTotal })
+      .eq('key', 'total_euros_in_system');
+
+    if (systemError) throw systemError;
+  } else {
+    // Initialize if it doesn't exist
+    const { error: initError } = await supabase
+      .from('system_settings')
+      .insert({ key: 'total_euros_in_system', value: request.euro_amount });
+
+    if (initError) throw initError;
+  }
+
+  // Update fund request status
+  const { error: updateError } = await supabase
+    .from('fund_requests')
+    .update({
+      status: 'APPROVED',
+      admin_id: adminId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', requestId);
+
+  if (updateError) throw updateError;
+
+  revalidatePath('/admin');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
+export async function rejectFundRequestAction(
+  requestId: string,
+  adminId: string,
+  notes?: string
+) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Verify admin
+  const { data: admin } = await supabase
+    .from('users')
+    .select('is_admin, name')
+    .eq('id', adminId)
+    .single();
+
+  if (!admin || !admin.is_admin || admin.name !== 'Bart-Jan Decroos') {
+    throw new Error('Unauthorized: Only admin can reject fund requests');
+  }
+
+  // Get fund request
+  const { data: request, error: requestError } = await supabase
+    .from('fund_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single();
+
+  if (requestError || !request) {
+    throw new Error('Fund request not found');
+  }
+
+  if (request.status !== 'PENDING') {
+    throw new Error('Fund request is not pending');
+  }
+
+  // Update fund request status
+  const { error: updateError } = await supabase
+    .from('fund_requests')
+    .update({
+      status: 'REJECTED',
+      admin_id: adminId,
+      notes: notes || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', requestId);
+
+  if (updateError) throw updateError;
+
+  revalidatePath('/admin');
+  revalidatePath('/dashboard');
+  return { success: true };
+}
+
+export async function calculatePayoutAction(userId: string) {
+  const supabase = await createServerSupabaseClient();
+  
+  // Get user balance
+  const { data: user } = await supabase
+    .from('users')
+    .select('balance')
+    .eq('id', userId)
+    .single();
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Get total fitcoins in system (sum of all user balances)
+  const { data: allUsers } = await supabase
+    .from('users')
+    .select('balance');
+
+  const totalFitcoins = allUsers?.reduce((sum, u) => sum + u.balance, 0) || 0;
+
+  // Get total euros in system
+  const { data: systemSettings } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'total_euros_in_system')
+    .single();
+
+  const totalEuros = systemSettings ? Number(systemSettings.value) : 0;
+
+  // Calculate payout: (user_balance / total_fitcoins) * total_euros
+  const payout =
+    totalFitcoins > 0 ? (user.balance / totalFitcoins) * totalEuros : 0;
+
+  return {
+    userBalance: user.balance,
+    totalFitcoins,
+    totalEuros,
+    payout: Math.round(payout * 100) / 100, // Round to 2 decimal places
+  };
+}
+
+// Utility action to unlink all users (for testing/development)
+export async function unlinkAllUsersAction() {
+  const supabase = await createServerSupabaseClient();
+  
+  // Get all users that have an auth_user_id
+  const { data: users, error: fetchError } = await supabase
+    .from('users')
+    .select('id')
+    .not('auth_user_id', 'is', null);
+
+  if (fetchError) {
+    // If the query fails, try updating all users (harmless to set null on already-null values)
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ auth_user_id: null });
+    
+    if (updateError) {
+      throw updateError;
+    }
+  } else if (users && users.length > 0) {
+    // Update only users that have an auth_user_id
+    const userIds = users.map(u => u.id);
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ auth_user_id: null })
+      .in('id', userIds);
+    
+    if (updateError) {
+      throw updateError;
+    }
+  }
+
+  revalidatePath('/');
+  return { success: true };
+}

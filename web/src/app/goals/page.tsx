@@ -1,15 +1,16 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUserId } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { createServerSupabaseClient } from '@/lib/supabase';
 import GoalsForm from '@/components/GoalsForm';
 
 export default async function GoalsPage() {
   const userId = await getCurrentUserId();
 
   if (!userId) {
-    redirect('/');
+    redirect('/login');
   }
 
+  const supabase = await createServerSupabaseClient();
   const { data: user } = await supabase
     .from('users')
     .select('goals_set')

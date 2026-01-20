@@ -1,15 +1,16 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUserId } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { createServerSupabaseClient } from '@/lib/supabase';
 import AdminPanel from '@/components/AdminPanel';
 
 export default async function AdminPage() {
   const userId = await getCurrentUserId();
 
   if (!userId) {
-    redirect('/');
+    redirect('/login');
   }
 
+  const supabase = await createServerSupabaseClient();
   const { data: user } = await supabase
     .from('users')
     .select('is_admin')
@@ -20,6 +21,6 @@ export default async function AdminPage() {
     redirect('/dashboard');
   }
 
-  return <AdminPanel />;
+  return <AdminPanel userId={userId} />;
 }
 

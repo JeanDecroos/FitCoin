@@ -25,7 +25,11 @@ WITH seed_data (name) AS (
     ('Ziggy Moens')
 )
 INSERT INTO public.users (name, balance, is_admin, goals_set)
-SELECT name, 5000, false, false
+SELECT 
+  name, 
+  0, 
+  name = 'Bart-Jan Decroos',
+  false
 FROM seed_data
 ON CONFLICT (name) DO NOTHING;
 

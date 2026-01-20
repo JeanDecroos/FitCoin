@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { signOutAction } from '@/app/actions';
 import { Tables } from '@/types/supabase';
 import WagerFeed from './WagerFeed';
 import Leaderboard from './Leaderboard';
 import CreateWagerModal from './CreateWagerModal';
-import { Coins, Plus, Shield } from 'lucide-react';
+import BuyCoinsModal from './BuyCoinsModal';
+import { Coins, Plus, Shield, ShoppingCart, LogOut } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Wager = Tables<'wagers'> & {
@@ -22,11 +25,22 @@ interface DashboardContentProps {
 }
 
 export default function DashboardContent({ userId, isAdmin }: DashboardContentProps) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [wagers, setWagers] = useState<Wager[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBuyCoinsModal, setShowBuyCoinsModal] = useState(false);
+  const [pendingFundRequests, setPendingFundRequests] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  async function handleSignOut() {
+    const result = await signOutAction();
+    if (result.success) {
+      router.push('/login');
+      router.refresh();
+    }
+  }
 
   useEffect(() => {
     fetchData();
@@ -70,6 +84,17 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
       } else {
         setWagers((wagersData as any) || []);
       }
+
+      // Fetch pending fund requests for current user
+      const { data: fundRequests } = await supabase
+        .from('fund_requests')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'PENDING');
+
+      if (fundRequests) {
+        setPendingFundRequests(fundRequests.length);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -98,6 +123,18 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
                   <Coins className="w-5 h-5 text-yellow-400" />
                   <span className="text-xl font-semibold">{user.balance.toLocaleString()} FC</span>
                 </div>
+                <button
+                  onClick={() => setShowBuyCoinsModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Buy Coins
+                  {pendingFundRequests > 0 && (
+                    <span className="bg-yellow-400 text-gray-900 rounded-full px-1.5 py-0.5 text-xs font-bold">
+                      {pendingFundRequests}
+                    </span>
+                  )}
+                </button>
               </div>
             )}
           </div>
@@ -117,6 +154,13 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
             >
               <Plus className="w-5 h-5" />
               Place Bet
+            </button>
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+              Sign Out
             </button>
           </div>
         </div>
@@ -141,6 +185,17 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
+            fetchData();
+          }}
+        />
+      )}
+
+      {showBuyCoinsModal && (
+        <BuyCoinsModal
+          userId={userId}
+          onClose={() => setShowBuyCoinsModal(false)}
+          onSuccess={() => {
+            setShowBuyCoinsModal(false);
             fetchData();
           }}
         />

@@ -58,6 +58,7 @@ export type Database = {
       users: {
         Row: {
           avatar_url: string | null
+          auth_user_id: string | null
           balance: number
           created_at: string
           goals_set: boolean
@@ -68,6 +69,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          auth_user_id?: string | null
           balance?: number
           created_at?: string
           goals_set?: boolean
@@ -78,6 +80,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          auth_user_id?: string | null
           balance?: number
           created_at?: string
           goals_set?: boolean
@@ -159,6 +162,81 @@ export type Database = {
           },
         ]
       }
+      fund_requests: {
+        Row: {
+          id: string
+          user_id: string
+          euro_amount: number
+          fitcoin_amount: number
+          status: Database["public"]["Enums"]["fund_request_status"]
+          admin_id: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          euro_amount: number
+          fitcoin_amount: number
+          status?: Database["public"]["Enums"]["fund_request_status"]
+          admin_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          euro_amount?: number
+          fitcoin_amount?: number
+          status?: Database["public"]["Enums"]["fund_request_status"]
+          admin_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fund_requests_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_settings: {
+        Row: {
+          id: string
+          key: string
+          value: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          value?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          value?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -171,6 +249,7 @@ export type Database = {
       challenge_type: "DEXA" | "FUNCTIONAL"
       wager_prediction: "PASS" | "FAIL"
       wager_status: "OPEN" | "MATCHED" | "SETTLED" | "CANCELLED"
+      fund_request_status: "PENDING" | "APPROVED" | "REJECTED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -302,6 +381,7 @@ export const Constants = {
       challenge_type: ["DEXA", "FUNCTIONAL"],
       wager_prediction: ["PASS", "FAIL"],
       wager_status: ["OPEN", "MATCHED", "SETTLED", "CANCELLED"],
+      fund_request_status: ["PENDING", "APPROVED", "REJECTED"],
     },
   },
 } as const
