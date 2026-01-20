@@ -20,6 +20,10 @@ export async function signUpAction(name: string, email: string, password: string
 
     if (nameCheckError) {
       console.error('Error checking existing user by name:', nameCheckError);
+      // Handle RLS errors
+      if (nameCheckError.code === '42501' || nameCheckError.message?.includes('row-level security') || nameCheckError.message?.includes('RLS')) {
+        return { success: false, error: 'Permission denied. Please ensure Row Level Security policies are configured. Contact support.' };
+      }
       // If the error is about missing column, the migration hasn't been run
       if (nameCheckError.message?.includes('column') || nameCheckError.code === '42703') {
         return { success: false, error: 'Database migration not applied. Please contact support.' };
@@ -38,6 +42,10 @@ export async function signUpAction(name: string, email: string, password: string
 
     if (emailCheckError) {
       console.error('Error checking existing user by email:', emailCheckError);
+      // Handle RLS errors
+      if (emailCheckError.code === '42501' || emailCheckError.message?.includes('row-level security') || emailCheckError.message?.includes('RLS')) {
+        return { success: false, error: 'Permission denied. Please ensure Row Level Security policies are configured. Contact support.' };
+      }
       // If the error is about missing column, the migration hasn't been run
       if (emailCheckError.message?.includes('column') || emailCheckError.code === '42703') {
         return { success: false, error: 'Database migration not applied. Please contact support.' };
@@ -73,6 +81,10 @@ export async function signUpAction(name: string, email: string, password: string
 
     if (createError) {
       console.error('Error creating user:', createError);
+      // Handle RLS (Row Level Security) errors
+      if (createError.code === '42501' || createError.message?.includes('row-level security') || createError.message?.includes('RLS')) {
+        return { success: false, error: 'Permission denied. Please ensure Row Level Security policies are configured. Contact support.' };
+      }
       // Handle database constraint errors
       if (createError.code === '23505') { // Unique violation error code
         if (createError.message.includes('email')) {
@@ -262,61 +274,15 @@ export async function createChallengeAction(
       return { success: false, error: insertError.message || 'Failed to create challenge. Please try again.' };
     }
 
-    // Give user 200 fitcoins (entry fee)
-    const { data: user, error: userError } = await supabase
+    // Mark goals as set (users only get 200 coins on signup, not when creating challenge)
+    const { error: updateError } = await supabase
       .from('users')
-      .select('balance')
-      .eq('id', userId)
-      .single();
-
-    if (userError || !user) {
-      console.error('Error fetching user:', userError);
-      return { success: false, error: 'User not found. Please try again.' };
-    }
-
-    const { error: balanceError } = await supabase
-      .from('users')
-      .update({ balance: user.balance + 200, goals_set: true })
+      .update({ goals_set: true })
       .eq('id', userId);
 
-    if (balanceError) {
-      console.error('Error updating user balance:', balanceError);
-      return { success: false, error: 'Failed to update balance. Please try again.' };
-    }
-
-    // Add 20 euros to system total (200 fitcoins = 20 euros at 10 fitcoins/euro)
-    const { data: systemSettings, error: settingsError } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'total_euros_in_system')
-      .maybeSingle();
-
-    if (settingsError) {
-      console.error('Error fetching system settings:', settingsError);
-      return { success: false, error: 'Failed to update system settings. Please try again.' };
-    }
-
-    if (systemSettings) {
-      const newTotal = Number(systemSettings.value) + 20;
-      const { error: systemError } = await supabase
-        .from('system_settings')
-        .update({ value: newTotal })
-        .eq('key', 'total_euros_in_system');
-
-      if (systemError) {
-        console.error('Error updating system settings:', systemError);
-        return { success: false, error: 'Failed to update system settings. Please try again.' };
-      }
-    } else {
-      // Initialize if it doesn't exist
-      const { error: initError } = await supabase
-        .from('system_settings')
-        .insert({ key: 'total_euros_in_system', value: 20 });
-
-      if (initError) {
-        console.error('Error initializing system settings:', initError);
-        return { success: false, error: 'Failed to initialize system settings. Please try again.' };
-      }
+    if (updateError) {
+      console.error('Error updating user goals_set:', updateError);
+      return { success: false, error: 'Failed to update user. Please try again.' };
     }
 
     revalidatePath('/');
