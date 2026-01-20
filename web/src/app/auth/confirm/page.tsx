@@ -26,6 +26,7 @@ function ConfirmContent() {
         const queryType = searchParams.get('type');
         const queryError = searchParams.get('error');
         const queryTokenHash = searchParams.get('token_hash');
+        const queryEmail = searchParams.get('email');
 
         // Handle error cases
         if (error || queryError) {
@@ -65,7 +66,7 @@ function ConfirmContent() {
         if ((queryToken || queryTokenHash) && queryType) {
           let verifyError = null;
           
-          // Try with token_hash first (most common)
+          // Try with token_hash first (most common, doesn't require email)
           if (queryTokenHash) {
             const result = await supabase.auth.verifyOtp({
               token_hash: queryTokenHash,
@@ -87,12 +88,23 @@ function ConfirmContent() {
               });
               verifyError = result.error;
             } else {
-              // Regular token
-              const result = await supabase.auth.verifyOtp({
-                token: queryToken,
-                type: queryType as any,
-              });
-              verifyError = result.error;
+              // Regular token - for email OTP, we need email parameter
+              // If email is not available, use token_hash approach instead
+              if (queryEmail) {
+                const result = await supabase.auth.verifyOtp({
+                  token: queryToken,
+                  type: queryType as any,
+                  email: queryEmail,
+                });
+                verifyError = result.error;
+              } else {
+                // Fallback: try using token as token_hash if email not available
+                const result = await supabase.auth.verifyOtp({
+                  token_hash: queryToken,
+                  type: queryType as any,
+                });
+                verifyError = result.error;
+              }
             }
           }
 
