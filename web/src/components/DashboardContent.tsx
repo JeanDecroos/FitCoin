@@ -9,7 +9,7 @@ import { Tables } from '@/types/supabase';
 import WagerFeed from './WagerFeed';
 import ChallengesFeed from './ChallengesFeed';
 import CreateWagerModal from './CreateWagerModal';
-import { Coins, Plus, Shield, LogOut, Target, Settings } from 'lucide-react';
+import { Coins, Plus, LogOut, Target, Settings } from 'lucide-react';
 
 type User = Tables<'users'>;
 type Wager = Tables<'wagers'> & {
@@ -20,10 +20,9 @@ type Wager = Tables<'wagers'> & {
 
 interface DashboardContentProps {
   userId: string;
-  isAdmin: boolean;
 }
 
-export default function DashboardContent({ userId, isAdmin }: DashboardContentProps) {
+export default function DashboardContent({ userId }: DashboardContentProps) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [wagers, setWagers] = useState<Wager[]>([]);
@@ -127,15 +126,6 @@ export default function DashboardContent({ userId, isAdmin }: DashboardContentPr
               <Settings className="w-5 h-5" />
               Settings
             </Link>
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-              >
-                <Shield className="w-5 h-5" />
-                Admin
-              </Link>
-            )}
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900 font-semibold rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all"

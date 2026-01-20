@@ -13,7 +13,7 @@ export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient();
   const { data: user } = await supabase
     .from('users')
-    .select('goals_set, is_admin')
+    .select('goals_set')
     .eq('id', userId)
     .single();
 
@@ -21,6 +21,6 @@ export default async function DashboardPage() {
     redirect('/goals');
   }
 
-  return <DashboardContent userId={userId} isAdmin={user.is_admin} />;
+  return <DashboardContent userId={userId} />;
 }
 

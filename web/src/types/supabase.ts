@@ -230,6 +230,7 @@ export type Database = {
           id: string
           key: string
           value: number
+          timestamp_value: string | null
           created_at: string
           updated_at: string
         }
@@ -237,6 +238,7 @@ export type Database = {
           id?: string
           key: string
           value?: number
+          timestamp_value?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -244,6 +246,7 @@ export type Database = {
           id?: string
           key?: string
           value?: number
+          timestamp_value?: string | null
           created_at?: string
           updated_at?: string
         }
